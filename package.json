@@ -1,0 +1,21 @@
+{
+  "name": "trade-x",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "backend/*",
+    "shared"
+  ],
+  "scripts": {
+    "dev:auth":      "npm run dev --workspace=backend/auth-service",
+    "dev:orders":    "npm run dev --workspace=backend/order-service",
+    "dev:engine":    "npm run dev --workspace=backend/matching-engine",
+    "dev:portfolio": "npm run dev --workspace=backend/portfolio-service",
+    "dev:market":    "npm run dev --workspace=backend/market-data-service",
+    "dev:gateway":   "npm run dev --workspace=backend/api-gateway",
+    "dev:all":       "concurrently \"npm:dev:auth\" \"npm:dev:orders\" \"npm:dev:engine\" \"npm:dev:portfolio\" \"npm:dev:market\" \"npm:dev:gateway\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
