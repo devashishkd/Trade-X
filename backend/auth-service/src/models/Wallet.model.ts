@@ -31,10 +31,10 @@ const WalletSchema = new Schema<IWallet>(
     timestamps: true,
     collection: 'wallets',
     toJSON: {
-      transform: (_, ret) => {
+      transform: (_doc: unknown, ret: Record<string, unknown>) => {
         // Serialize Decimal128 as strings in JSON (not BSON objects)
-        if (ret.availableBalance) ret.availableBalance = ret.availableBalance.toString();
-        if (ret.lockedBalance)    ret.lockedBalance    = ret.lockedBalance.toString();
+        if (ret['availableBalance']) ret['availableBalance'] = String(ret['availableBalance']);
+        if (ret['lockedBalance'])    ret['lockedBalance']    = String(ret['lockedBalance']);
         return ret;
       },
     },

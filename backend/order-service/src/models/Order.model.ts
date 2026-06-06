@@ -66,14 +66,14 @@ const OrderSchema = new Schema<IOrder>(
     timestamps: true,
     collection: 'orders',
     toJSON: {
-      transform: (_, ret) => {
-        if (ret.price)        ret.price        = ret.price.toString();
-        if (ret.averagePrice) ret.averagePrice  = ret.averagePrice.toString();
-        if (ret.stopPrice)    ret.stopPrice     = ret.stopPrice.toString();
-        if (ret.fills) {
-          ret.fills = ret.fills.map((f: IOrderFill & { price: mongoose.Types.Decimal128 }) => ({
+      transform: (_doc: unknown, ret: Record<string, unknown>) => {
+        if (ret['price'])        ret['price']        = String(ret['price']);
+        if (ret['averagePrice']) ret['averagePrice']  = String(ret['averagePrice']);
+        if (ret['stopPrice'])    ret['stopPrice']     = String(ret['stopPrice']);
+        if (Array.isArray(ret['fills'])) {
+          ret['fills'] = (ret['fills'] as Array<Record<string, unknown>>).map(f => ({
             ...f,
-            price: f.price?.toString?.() ?? f.price,
+            price: f['price'] != null ? String(f['price']) : f['price'],
           }));
         }
         return ret;
