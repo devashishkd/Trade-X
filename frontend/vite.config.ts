@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  optimizeDeps: {
+    exclude: ['lightweight-charts'],
+  },
   server: {
     port: 5173,
     proxy: {

@@ -138,11 +138,16 @@ export const getDepth = async (symbol: string, levels = 20) => {
 /**
  * Get recent trades for a symbol (most recent first).
  */
-export const getRecentTrades = async (symbol: string, limit = 50) => {
-  return RecentTrade.find({ symbol: symbol.toUpperCase() })
+export const getRecentTrades = async (symbol: string, limit = 50): Promise<any[]> => {
+  const trades = await RecentTrade.find({ symbol: symbol.toUpperCase() })
     .sort({ executedAt: -1 })
     .limit(limit)
     .lean();
+    
+  return trades.map(t => ({
+    ...t,
+    price: String(t.price)
+  }));
 };
 
 /**

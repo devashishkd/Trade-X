@@ -24,7 +24,7 @@ interface PortfolioSummary {
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const [wallet, setWallet] = useState<{ available: string; locked: string } | null>(null);
+  const [wallet, setWallet] = useState<{ availableBalance: string; lockedBalance: string } | null>(null);
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -32,7 +32,7 @@ export const Dashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         const [walletRes, portfolioRes] = await Promise.all([
-          apiClient.get('/wallet'),
+          apiClient.get('/wallet/balance'),
           apiClient.get('/portfolio/summary')
         ]);
         
@@ -52,8 +52,8 @@ export const Dashboard: React.FC = () => {
     return <div className="flex items-center justify-center h-full"><div className="animate-pulse text-indigo-400">Loading Dashboard...</div></div>;
   }
 
-  const totalValue = parseFloat(wallet?.available || '0') + 
-                     parseFloat(wallet?.locked || '0') + 
+  const totalValue = parseFloat(wallet?.availableBalance || '0') + 
+                     parseFloat(wallet?.lockedBalance || '0') + 
                      parseFloat(portfolio?.totalCurrentValue || '0');
 
   return (
@@ -70,8 +70,8 @@ export const Dashboard: React.FC = () => {
 
         <Card>
           <div className="text-gray-400 text-sm font-medium mb-1">Available Cash</div>
-          <div className="text-2xl font-bold text-white mb-2">${parseFloat(wallet?.available || '0').toFixed(2)}</div>
-          <div className="text-xs text-gray-500">Locked: ${parseFloat(wallet?.locked || '0').toFixed(2)}</div>
+          <div className="text-2xl font-bold text-white mb-2">${parseFloat(wallet?.availableBalance || '0').toFixed(2)}</div>
+          <div className="text-xs text-gray-500">Locked: ${parseFloat(wallet?.lockedBalance || '0').toFixed(2)}</div>
         </Card>
 
         <Card>
