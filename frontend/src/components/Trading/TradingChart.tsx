@@ -11,7 +11,7 @@ interface TradingChartProps {
   symbol: string;
 }
 
-export const TradingChart: React.FC<TradingChartProps> = ({ data, symbol }) => {
+export const TradingChart: React.FC<TradingChartProps> = ({ data }) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const seriesRef = useRef<any>(null);
@@ -58,42 +58,45 @@ export const TradingChart: React.FC<TradingChartProps> = ({ data, symbol }) => {
       }
     });
 
-    lineSeries.setData(uniqueData);
+    lineSeries.setData(uniqueData as any);
 
     chartRef.current = chart;
     seriesRef.current = lineSeries;
 
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
-        });
+    const resizeObserver = new ResizeObserver(entries => {
+      if (entries.length === 0 || entries[0].target !== chartContainerRef.current) return;
+      const newRect = entries[0].contentRect;
+      if (chartRef.current) {
+        chartRef.current.applyOptions({ width: newRect.width, height: newRect.height });
       }
-    };
+    });
 
-    window.addEventListener('resize', handleResize);
+    resizeObserver.observe(chartContainerRef.current);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       chart.remove();
     };
   }, []);
 
   // Update data when it changes
   useEffect(() => {
-    if (seriesRef.current && data.length > 0) {
-      const sortedData = [...data].sort((a, b) => a.time - b.time);
-      const uniqueData: TradeData[] = [];
-      sortedData.forEach(d => {
-        const last = uniqueData[uniqueData.length - 1];
-        if (!last || last.time !== d.time) {
-          uniqueData.push(d);
-        } else {
-          last.value = d.value;
-        }
-      });
-      seriesRef.current.setData(uniqueData);
+    if (seriesRef.current) {
+      if (data.length > 0) {
+        const sortedData = [...data].sort((a, b) => a.time - b.time);
+        const uniqueData: TradeData[] = [];
+        sortedData.forEach(d => {
+          const last = uniqueData[uniqueData.length - 1];
+          if (!last || last.time !== d.time) {
+            uniqueData.push(d);
+          } else {
+            last.value = d.value;
+          }
+        });
+        seriesRef.current.setData(uniqueData as any);
+      } else {
+        seriesRef.current.setData([]);
+      }
     }
   }, [data]);
 

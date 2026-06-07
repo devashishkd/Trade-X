@@ -147,8 +147,11 @@ export const TradePage: React.FC = () => {
 
         {/* Left Column: Chart & Recent Trades */}
         <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-y-auto pr-2 pb-4">
-          <Card className="flex-1 flex flex-col min-h-[300px]" title={<div className="flex items-center gap-2"><Activity className="w-4 h-4 text-indigo-400" /> Price Chart</div>}>
-            <div className="flex-1 rounded-md overflow-hidden bg-black/20">
+          <Card 
+            className="flex-1 flex flex-col min-h-[300px]" 
+            contentClassName="flex flex-col min-h-0"
+            title={<div className="flex items-center gap-2"><Activity className="w-4 h-4 text-indigo-400" /> Price Chart</div>}>
+            <div className="flex-1 rounded-md overflow-hidden bg-black/20 relative min-h-0">
               <TradingChart
                 symbol={symbol}
                 data={recentTrades.map(t => ({

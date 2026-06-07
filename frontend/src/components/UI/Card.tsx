@@ -4,12 +4,13 @@ import { clsx } from 'clsx';
 interface CardProps {
   children: ReactNode;
   className?: string;
+  contentClassName?: string;
   title?: ReactNode;
   footer?: ReactNode;
   noPadding?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className, title, footer, noPadding = false }) => {
+export const Card: React.FC<CardProps> = ({ children, className, contentClassName, title, footer, noPadding = false }) => {
   return (
     <div className={clsx('glass-panel flex flex-col', className)}>
       {title && (
@@ -17,7 +18,7 @@ export const Card: React.FC<CardProps> = ({ children, className, title, footer, 
           {title}
         </div>
       )}
-      <div className={clsx('flex-1', !noPadding && 'p-6')}>
+      <div className={clsx('flex-1', !noPadding && 'p-6', contentClassName)}>
         {children}
       </div>
       {footer && (
