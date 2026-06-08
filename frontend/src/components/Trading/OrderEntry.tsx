@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from '../UI/Card';
 import { Button } from '../UI/Button';
-import apiClient from '../../api/client';
+import { apiClient } from '../../services/apiClient';
 
 interface OrderEntryProps {
   symbol: string;

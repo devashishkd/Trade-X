@@ -1,9 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType, LineSeries } from 'lightweight-charts';
+import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
 
 interface TradeData {
   time: number;
-  value: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 }
 
 interface TradingChartProps {
@@ -36,11 +39,12 @@ export const TradingChart: React.FC<TradingChartProps> = ({ data }) => {
       },
     });
 
-    const lineSeries = chart.addSeries(LineSeries, {
-      color: '#8b5cf6', // accent-secondary
-      lineWidth: 2,
-      crosshairMarkerVisible: true,
-      crosshairMarkerRadius: 4,
+    const candlestickSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#10b981',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#10b981',
+      wickDownColor: '#ef4444',
     });
 
     // Ensure data is sorted by time
@@ -53,15 +57,17 @@ export const TradingChart: React.FC<TradingChartProps> = ({ data }) => {
       if (!last || last.time !== d.time) {
         uniqueData.push(d);
       } else {
-        // If same timestamp, update the value
-        last.value = d.value;
+        // If same timestamp, update the close value
+        last.close = d.close;
+        last.high = Math.max(last.high, d.high);
+        last.low = Math.min(last.low, d.low);
       }
     });
 
-    lineSeries.setData(uniqueData as any);
+    candlestickSeries.setData(uniqueData as any);
 
     chartRef.current = chart;
-    seriesRef.current = lineSeries;
+    seriesRef.current = candlestickSeries;
 
     const resizeObserver = new ResizeObserver(entries => {
       if (entries.length === 0 || entries[0].target !== chartContainerRef.current) return;
@@ -90,7 +96,9 @@ export const TradingChart: React.FC<TradingChartProps> = ({ data }) => {
           if (!last || last.time !== d.time) {
             uniqueData.push(d);
           } else {
-            last.value = d.value;
+            last.close = d.close;
+            last.high = Math.max(last.high, d.high);
+            last.low = Math.min(last.low, d.low);
           }
         });
         seriesRef.current.setData(uniqueData as any);

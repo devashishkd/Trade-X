@@ -9,7 +9,7 @@ const BOT_CREDENTIALS = {
   password: 'BotPassword123!'
 };
 
-const SYMBOLS = ['AAPL', 'TSLA', 'MSFT', 'AMZN', 'GOOGL'];
+const SYMBOLS = ['AAPL', 'TSLA', 'MSFT', 'AMZN', 'GOOG', 'META', 'NFLX', 'NVDA'];
 let token = '';
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -39,13 +39,13 @@ async function initBot() {
       }
     }
 
-    // Give bot unlimited money
+    // Give bot money (Max deposit per transaction is 1M)
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    await axios.post(`${API_URL}/wallet/deposit`, { amount: 10000000 });
+    await axios.post(`${API_URL}/wallet/deposit`, { amount: 1000000 });
     console.log('💰 Bot wallet funded');
 
     // Give bot unlimited shares for all symbols via internal API
-    const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || 'dev-internal-service-key-123';
+    const SERVICE_KEY = process.env.INTERNAL_SERVICE_KEY || 'trade_x_internal_key_change_in_production';
     
     for (const symbol of SYMBOLS) {
       await axios.post('http://localhost:3004/internal/portfolio/trade-executed', {
@@ -76,7 +76,10 @@ let baselinePrices: Record<string, number> = {
   'TSLA': 200.0,
   'MSFT': 350.0,
   'AMZN': 130.0,
-  'GOOGL': 140.0
+  'GOOG': 140.0,
+  'META': 300.0,
+  'NFLX': 400.0,
+  'NVDA': 500.0
 };
 
 async function startTrading() {

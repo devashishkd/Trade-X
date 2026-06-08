@@ -29,4 +29,10 @@ router.get('/:symbol/depth', marketDataController.getDepth);
  */
 router.get('/:symbol/trades', marketDataController.getTrades);
 
+/**
+ * GET /market/:symbol/history?timeframe=1D|1W|1M|1Y|5Y
+ * Get historical chart data.
+ */
+router.get('/:symbol/history', marketDataController.getHistory);
+
 export default router;

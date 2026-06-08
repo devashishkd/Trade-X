@@ -1,41 +1,45 @@
-import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from './components/Layout/AppLayout';
+import { AuthLayout } from './layouts/AuthLayout';
+import { MainLayout } from './layouts/MainLayout';
+
+// Auth Pages
 import { Login } from './pages/Auth/Login';
 import { Register } from './pages/Auth/Register';
+
+// Dashboard & Data Pages
 import { Dashboard } from './pages/Dashboard/Dashboard';
-import { TradePage } from './pages/Trading/TradePage';
-import { useAuth } from './context/AuthContext';
+import { Market } from './pages/Market/Market';
+import { Portfolio } from './pages/Portfolio/Portfolio';
+import { Orders } from './pages/Orders/Orders';
+import { Trades } from './pages/Trades/Trades';
 import { Wallet } from './pages/Wallet/Wallet';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#0f1115] text-white">Loading...</div>;
-  }
-  
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
-};
+// Trading Terminal
+import { TradePage } from './pages/Trading/TradePage';
 
 function App() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      {/* Public/Auth Routes */}
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Route>
       
-      <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+      {/* Protected Routes */}
+      <Route element={<MainLayout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="market" element={<Market />} />
         <Route path="trade/:symbol" element={<TradePage />} />
+        <Route path="portfolio" element={<Portfolio />} />
+        <Route path="orders" element={<Orders />} />
+        <Route path="trades" element={<Trades />} />
         <Route path="wallet" element={<Wallet />} />
       </Route>
       
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Catch All */}
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

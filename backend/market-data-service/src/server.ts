@@ -7,6 +7,7 @@ import { connectDB }      from './config/db.config';
 import marketRoutes       from './routes/market.routes';
 import internalRoutes     from './routes/internal.routes';
 import { seedSymbols }    from './seed/symbols.seed';
+import { seedHistory }    from './seed/history.seed';
 import { AppError, errorResponse, createLogger } from '@trade-x/shared';
 
 const logger = createLogger('market-data-service');
@@ -47,6 +48,7 @@ const PORT = parseInt(process.env.PORT ?? process.env.MARKET_PORT ?? '3005');
 const start = async (): Promise<void> => {
   await connectDB();
   await seedSymbols();
+  await seedHistory();
 
   app.listen(PORT, () => {
     logger.info(`Market Data Service running on http://localhost:${PORT}`);

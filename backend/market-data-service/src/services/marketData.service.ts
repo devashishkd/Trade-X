@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { MarketSnapshot } from '../models/MarketSnapshot.model';
 import { RecentTrade }    from '../models/RecentTrade.model';
+import { HistoricalPrice } from '../models/HistoricalPrice.model';
 import { toDecimal128, fromDecimal128, createLogger } from '@trade-x/shared';
 import * as engineClient from './matchingEngine.client';
 
@@ -147,6 +148,38 @@ export const getRecentTrades = async (symbol: string, limit = 50): Promise<any[]
   return trades.map(t => ({
     ...t,
     price: String(t.price)
+  }));
+};
+
+/**
+ * Get historical chart data for a symbol.
+ */
+export const getHistory = async (symbol: string, timeframe: string): Promise<any[]> => {
+  const now = new Date();
+  let fromDate = new Date();
+  
+  switch (timeframe) {
+    case '1D': fromDate.setDate(now.getDate() - 1); break;
+    case '1W': fromDate.setDate(now.getDate() - 7); break;
+    case '1M': fromDate.setMonth(now.getMonth() - 1); break;
+    case '1Y': fromDate.setFullYear(now.getFullYear() - 1); break;
+    case '5Y': fromDate.setFullYear(now.getFullYear() - 5); break;
+    default:   fromDate.setFullYear(now.getFullYear() - 1);
+  }
+
+  const history = await HistoricalPrice.find({
+    symbol: symbol.toUpperCase(),
+    timestamp: { $gte: fromDate }
+  }).sort({ timestamp: 1 }).lean();
+
+  return history.map(h => ({
+    time: Math.floor(new Date(h.timestamp).getTime() / 1000),
+    open: parseFloat(String(h.open)),
+    high: parseFloat(String(h.high)),
+    low: parseFloat(String(h.low)),
+    close: parseFloat(String(h.close)),
+    value: parseFloat(String(h.close)), // for line chart fallback
+    volume: h.volume
   }));
 };
 

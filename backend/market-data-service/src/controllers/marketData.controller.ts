@@ -46,3 +46,14 @@ export const getTrades = async (
     res.status(200).json(successResponse(trades));
   } catch (err) { next(err); }
 };
+
+export const getHistory = async (
+  req: Request, res: Response, next: NextFunction,
+): Promise<void> => {
+  try {
+    const { symbol } = req.params;
+    const timeframe = (req.query.timeframe as string) || '1D';
+    const history = await marketDataService.getHistory(symbol, timeframe);
+    res.status(200).json(successResponse(history));
+  } catch (err) { next(err); }
+};

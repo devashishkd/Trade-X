@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '../../components/UI/Card';
 import { Button } from '../../components/UI/Button';
-import apiClient from '../../api/client';
+import { apiClient } from '../../services/apiClient';
 import { Wallet as WalletIcon, ArrowDownToLine, Activity } from 'lucide-react';
 
 interface Transaction {

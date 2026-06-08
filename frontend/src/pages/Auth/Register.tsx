@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../../components/UI/Button';
+import { Input } from '../../components/UI/Input';
 import { Card } from '../../components/UI/Card';
-import apiClient from '../../api/client';
+import { apiClient } from '../../services/apiClient';
 
-export const Register: React.FC = () => {
+export const Register = () => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const { login } = useAuth();
+  const login = useAuthStore(state => state.login);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,8 +24,8 @@ export const Register: React.FC = () => {
     try {
       const { data } = await apiClient.post('/auth/register', { username, email, password });
       if (data.success && data.data) {
-        login(data.data.token, data.data.user);
-        window.location.href = '/dashboard';
+        login(data.data.user, data.data.token);
+        navigate('/dashboard');
       }
     } catch (err: any) {
       setError(err.response?.data?.error?.message || 'Registration failed');
@@ -33,64 +35,53 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f1115] px-4">
-      <Card className="w-full max-w-md" title={<h2 className="text-2xl font-bold text-center">Create Account</h2>}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm px-4 py-3 rounded-md">
-              {error}
-            </div>
-          )}
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              required
-              className="w-full bg-black/40 border border-white/10 rounded-lg py-2.5 px-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-              placeholder="trader123"
-            />
+    <Card title={<h2 className="text-2xl font-bold text-center text-slate-100">Create Account</h2>}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm px-4 py-3 rounded-md">
+            {error}
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full bg-black/40 border border-white/10 rounded-lg py-2.5 px-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-              placeholder="you@example.com"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              className="w-full bg-black/40 border border-white/10 rounded-lg py-2.5 px-4 text-white placeholder:text-gray-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-              placeholder="••••••••"
-              minLength={6}
-            />
-          </div>
-          
-          <Button type="submit" size="full" isLoading={isLoading} className="mt-6">
-            Sign Up
-          </Button>
-        </form>
+        )}
         
-        <div className="mt-6 text-center text-sm text-gray-400">
-          Already have an account?{' '}
-          <Link to="/login" className="text-indigo-400 hover:text-indigo-300 font-medium">
-            Sign in here
-          </Link>
-        </div>
-      </Card>
-    </div>
+        <Input
+          label="Username"
+          type="text"
+          value={username}
+          onChange={e => setUsername(e.target.value)}
+          required
+          placeholder="trader123"
+        />
+
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          required
+          placeholder="you@example.com"
+        />
+        
+        <Input
+          label="Password"
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+          placeholder="••••••••"
+          minLength={6}
+        />
+        
+        <Button type="submit" size="full" isLoading={isLoading} className="mt-6">
+          Sign Up
+        </Button>
+      </form>
+      
+      <div className="mt-6 text-center text-sm text-slate-400">
+        Already have an account?{' '}
+        <Link to="/login" className="text-emerald-400 hover:text-emerald-300 font-medium">
+          Sign in here
+        </Link>
+      </div>
+    </Card>
   );
 };

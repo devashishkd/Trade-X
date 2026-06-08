@@ -4,7 +4,7 @@ import { OrderBook } from '../../components/Trading/OrderBook';
 import { OrderEntry } from '../../components/Trading/OrderEntry';
 import { TradingChart } from '../../components/Trading/TradingChart';
 import { Card } from '../../components/UI/Card';
-import apiClient from '../../api/client';
+import { apiClient } from '../../services/apiClient';
 import { TrendingUp, TrendingDown, Clock, Activity } from 'lucide-react';
 
 interface MarketData {
@@ -31,6 +31,8 @@ export const TradePage: React.FC = () => {
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [orderBook, setOrderBook] = useState<{ bids: [number, number][], asks: [number, number][] }>({ bids: [], asks: [] });
   const [recentTrades, setRecentTrades] = useState<TradeFeedItem[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [timeframe, setTimeframe] = useState('5Y');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +50,10 @@ export const TradePage: React.FC = () => {
       setError(null);
     } catch (error) {
       console.error('Failed to fetch market data', error);
-      setError('Unable to load market data. Please check if the backend services are running.');
+      setError(`Unable to load market data for ${symbol}.`);
+      setMarketData(null);
+      setRecentTrades([]);
+      setOrderBook({ bids: [], asks: [] });
     } finally {
       setIsLoading(false);
     }
@@ -56,11 +61,32 @@ export const TradePage: React.FC = () => {
 
   // Short polling for phase 1
   useEffect(() => {
+    // Clear state when symbol changes
+    setMarketData(null);
+    setRecentTrades([]);
+    setOrderBook({ bids: [], asks: [] });
+    setError(null);
     setIsLoading(true);
+
     fetchMarketData();
     const interval = setInterval(fetchMarketData, 2000);
     return () => clearInterval(interval);
   }, [fetchMarketData]);
+
+  const fetchChartHistory = useCallback(async () => {
+    try {
+      const res = await apiClient.get(`/market/${symbol}/history?timeframe=${timeframe}`);
+      if (res.data.success) {
+        setChartData(res.data.data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch historical data', e);
+    }
+  }, [symbol, timeframe]);
+
+  useEffect(() => {
+    fetchChartHistory();
+  }, [fetchChartHistory]);
 
   const handleOrderPlaced = () => {
     // Immediately fetch to show updated book
@@ -75,20 +101,18 @@ export const TradePage: React.FC = () => {
 
   if (error && !marketData) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <div className="text-red-400 mb-4">{error}</div>
-          <button
-            onClick={() => {
-              setIsLoading(true);
-              setError(null);
-              fetchMarketData();
-            }}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition"
-          >
-            Retry
-          </button>
-        </div>
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <div className="text-red-400">{error}</div>
+        <button
+          onClick={() => {
+            setIsLoading(true);
+            setError(null);
+            fetchMarketData();
+          }}
+          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -109,7 +133,7 @@ export const TradePage: React.FC = () => {
                 <option value="TSLA" className="bg-gray-900 text-base">TSLA</option>
                 <option value="MSFT" className="bg-gray-900 text-base">MSFT</option>
                 <option value="AMZN" className="bg-gray-900 text-base">AMZN</option>
-                <option value="GOOGL" className="bg-gray-900 text-base">GOOGL</option>
+                <option value="GOOG" className="bg-gray-900 text-base">GOOG</option>
               </select>
               <div className="absolute right-2 text-indigo-400 pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
@@ -150,14 +174,32 @@ export const TradePage: React.FC = () => {
           <Card 
             className="flex-1 flex flex-col min-h-[300px]" 
             contentClassName="flex flex-col min-h-0"
-            title={<div className="flex items-center gap-2"><Activity className="w-4 h-4 text-indigo-400" /> Price Chart</div>}>
+            title={
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-400" /> Price Chart
+                </div>
+                <div className="flex bg-white/5 rounded p-1 gap-1">
+                  {['1D', '1W', '1M', '1Y', '5Y'].map(tf => (
+                    <button
+                      key={tf}
+                      onClick={() => setTimeframe(tf)}
+                      className={`px-3 py-1 text-xs font-semibold rounded transition ${
+                        timeframe === tf 
+                          ? 'bg-indigo-600 text-white' 
+                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {tf}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            }>
             <div className="flex-1 rounded-md overflow-hidden bg-black/20 relative min-h-0">
               <TradingChart
                 symbol={symbol}
-                data={recentTrades.map(t => ({
-                  time: Math.floor(new Date(t.executedAt).getTime() / 1000),
-                  value: parseFloat(t.price)
-                }))}
+                data={chartData}
               />
             </div>
           </Card>
