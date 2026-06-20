@@ -1,171 +1,224 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Card } from '../../components/UI/Card';
 import { apiClient } from '../../services/apiClient';
+import { subscribeToSymbol, unsubscribeFromSymbol } from '../../services/socket';
+import type { TickerUpdate } from '../../services/socket';
 import { PieChart } from 'lucide-react';
 
-interface PortfolioSummary {
-  holdingsCount: number;
-  totalInvested: string;
-  totalCurrentValue: string;
-  totalUnrealizedPnL: string;
-  totalUnrealizedPnLPct: string;
-  holdings: Array<{
-    symbol: string;
-    totalQty: number;
-    avgCostBasis: string;
-    currentPrice: string | null;
-    currentValue: string | null;
-    unrealizedPnL: string | null;
-    unrealizedPnLPct: string | null;
-  }>;
+interface Holding {
+  symbol:           string;
+  totalQty:         number;
+  avgCostBasis:     string;
+  currentPrice:     number;
+  currentValue:     number;
+  unrealizedPnL:    number;
+  unrealizedPnLPct: number;
 }
 
+interface Summary {
+  holdingsCount:       number;
+  totalInvested:       number;
+  totalCurrentValue:   number;
+  totalUnrealizedPnL:  number;
+  totalUnrealizedPnLPct: number;
+  holdings:            Holding[];
+}
+
+const fmt = (v: number) =>
+  v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const PALETTE = ['#6366f1','#10b981','#3b82f6','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899'];
+
 export const Portfolio: React.FC = () => {
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [data,    setData]    = useState<Summary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [prices,  setPrices]  = useState<Record<string, number>>({});
+
+  const parseNum = (v: any): number => {
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') return parseFloat(v) || 0;
+    if (v?.$numberDecimal)     return parseFloat(v.$numberDecimal) || 0;
+    return 0;
+  };
 
   useEffect(() => {
-    const fetchPortfolio = async () => {
-      try {
-        const res = await apiClient.get('/portfolio/summary');
-        if (res.data.success) {
-          setPortfolio(res.data.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch portfolio', error);
-      } finally {
-        setIsLoading(false);
+    apiClient.get('/portfolio/summary').then((res) => {
+      if (res.data.success) {
+        const d = res.data.data;
+        const holdings: Holding[] = (d.holdings || []).map((h: any) => ({
+          symbol:           h.symbol,
+          totalQty:         h.totalQty,
+          avgCostBasis:     h.avgCostBasis,
+          currentPrice:     parseNum(h.currentPrice),
+          currentValue:     parseNum(h.currentValue),
+          unrealizedPnL:    parseNum(h.unrealizedPnL),
+          unrealizedPnLPct: parseNum(h.unrealizedPnLPct),
+        }));
+        setData({
+          holdingsCount:         d.holdingsCount,
+          totalInvested:         parseNum(d.totalInvested),
+          totalCurrentValue:     parseNum(d.totalCurrentValue),
+          totalUnrealizedPnL:    parseNum(d.totalUnrealizedPnL),
+          totalUnrealizedPnLPct: parseNum(d.totalUnrealizedPnLPct),
+          holdings,
+        });
+        // Seed initial prices
+        const init: Record<string, number> = {};
+        holdings.forEach((h) => { init[h.symbol] = h.currentPrice; });
+        setPrices(init);
       }
-    };
-    fetchPortfolio();
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-full"><div className="animate-pulse text-indigo-400">Loading Portfolio Data...</div></div>;
+  // ── Live price updates ──────────────────────────────────────────────────────
+  const handleTicker = useCallback((tick: TickerUpdate) => {
+    setPrices((prev) => ({ ...prev, [tick.symbol]: tick.lastTradedPrice }));
+  }, []);
+
+  useEffect(() => {
+    if (!data) return;
+    data.holdings.forEach((h) => subscribeToSymbol(h.symbol, { onTicker: handleTicker }));
+    return () => { data.holdings.forEach((h) => unsubscribeFromSymbol(h.symbol)); };
+  }, [data?.holdingsCount, handleTicker]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading) {
+    return <div className="page-loading"><div className="chart-loading-spinner" /><span>Loading portfolio…</span></div>;
   }
 
-  const invested = parseFloat(portfolio?.totalInvested || '0');
-  const currentValue = parseFloat(portfolio?.totalCurrentValue || '0');
-  const pnl = parseFloat(portfolio?.totalUnrealizedPnL || '0');
-  const pnlPct = parseFloat(portfolio?.totalUnrealizedPnLPct || '0');
-  const isPositive = pnl >= 0;
+  // ── Derive live values ───────────────────────────────────────────────────────
+  const holdings = (data?.holdings || []).map((h) => {
+    const livePrice  = prices[h.symbol] ?? h.currentPrice;
+    const liveValue  = livePrice * h.totalQty;
+    const cost       = parseFloat(h.avgCostBasis) * h.totalQty;
+    const livePnL    = liveValue - cost;
+    const livePnLPct = cost > 0 ? (livePnL / cost) * 100 : 0;
+    return { ...h, currentPrice: livePrice, currentValue: liveValue, unrealizedPnL: livePnL, unrealizedPnLPct: livePnLPct };
+  }).sort((a, b) => b.currentValue - a.currentValue);
 
-  // Asset allocation visual logic
-  const colors = ['bg-indigo-500', 'bg-emerald-500', 'bg-blue-500', 'bg-amber-500', 'bg-purple-500', 'bg-rose-500', 'bg-cyan-500'];
-  const sortedHoldings = [...(portfolio?.holdings || [])].sort((a, b) => parseFloat(b.currentValue || '0') - parseFloat(a.currentValue || '0'));
+  const liveTotalValue    = holdings.reduce((s, h) => s + h.currentValue, 0);
+  const liveTotalInvested = data?.totalInvested || 0;
+  const liveTotalPnL      = liveTotalValue - liveTotalInvested;
+  const liveTotalPnLPct   = liveTotalInvested > 0 ? (liveTotalPnL / liveTotalInvested) * 100 : 0;
+  const pnlIsUp           = liveTotalPnL >= 0;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-        <PieChart className="w-6 h-6 text-indigo-400" /> My Portfolio
-      </h1>
+    <div className="data-page">
+      <div className="data-page-header">
+        <div>
+          <h1 className="data-page-title flex items-center gap-2">
+            <PieChart className="w-5 h-5 text-indigo-400" /> My Portfolio
+          </h1>
+          <p className="data-page-sub">{data?.holdingsCount || 0} holdings · Live P&L</p>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="col-span-1 md:col-span-2 bg-gradient-to-br from-indigo-900/20 to-black/40 border-indigo-500/20">
-          <div className="text-gray-400 text-sm font-medium mb-1">Total Current Value</div>
-          <div className="text-4xl font-bold text-white mb-4">${currentValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          
-          {sortedHoldings.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-white/5">
-              <div className="text-xs text-gray-500 mb-2">Asset Allocation</div>
-              <div className="h-2 w-full bg-black/40 rounded-full flex overflow-hidden">
-                {sortedHoldings.map((h, i) => {
-                  const val = parseFloat(h.currentValue || '0');
-                  const width = currentValue > 0 ? (val / currentValue) * 100 : 0;
+      {/* ── Summary Cards ──────────────────────────────────────────────── */}
+      <div className="portfolio-summary-grid">
+        {/* Total value */}
+        <div className="portfolio-card portfolio-card--main">
+          <div className="portfolio-card-label">Current Value</div>
+          <div className="portfolio-card-value">₹{fmt(liveTotalValue)}</div>
+
+          {/* Donut-style allocation bar */}
+          {holdings.length > 0 && (
+            <div className="portfolio-alloc">
+              <div className="portfolio-alloc-bar">
+                {holdings.map((h, i) => {
+                  const w = liveTotalValue > 0 ? (h.currentValue / liveTotalValue) * 100 : 0;
                   return (
-                    <div 
-                      key={h.symbol} 
-                      className={`${colors[i % colors.length]} h-full transition-all duration-500`}
-                      style={{ width: `${width}%` }}
-                      title={`${h.symbol}: ${width.toFixed(1)}%`}
+                    <div
+                      key={h.symbol}
+                      style={{ width: `${w}%`, background: PALETTE[i % PALETTE.length] }}
+                      title={`${h.symbol}: ${w.toFixed(1)}%`}
+                      className="portfolio-alloc-segment"
                     />
                   );
                 })}
               </div>
-              <div className="flex flex-wrap gap-3 mt-3">
-                {sortedHoldings.slice(0, 4).map((h, i) => (
-                  <div key={h.symbol} className="flex items-center gap-1.5 text-xs text-gray-400">
-                    <span className={`w-2 h-2 rounded-full ${colors[i % colors.length]}`}></span>
+              <div className="portfolio-alloc-legend">
+                {holdings.slice(0, 5).map((h, i) => (
+                  <span key={h.symbol} className="portfolio-alloc-legend-item">
+                    <span className="portfolio-alloc-dot" style={{ background: PALETTE[i % PALETTE.length] }} />
                     {h.symbol}
-                  </div>
+                  </span>
                 ))}
-                {sortedHoldings.length > 4 && <div className="text-xs text-gray-500">+{sortedHoldings.length - 4} more</div>}
+                {holdings.length > 5 && <span className="portfolio-alloc-more">+{holdings.length - 5}</span>}
               </div>
             </div>
           )}
-        </Card>
+        </div>
 
-        <Card className="bg-black/20">
-          <div className="text-gray-400 text-sm font-medium mb-1">Total Invested</div>
-          <div className="text-2xl font-bold text-white mb-2">${invested.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </Card>
+        {/* Invested */}
+        <div className="portfolio-card">
+          <div className="portfolio-card-label">Invested</div>
+          <div className="portfolio-card-value portfolio-card-value--secondary">₹{fmt(liveTotalInvested)}</div>
+        </div>
 
-        <Card className="bg-black/20">
-          <div className="text-gray-400 text-sm font-medium mb-1">Unrealized P&L</div>
-          <div className={`text-2xl font-bold flex items-center gap-2 ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-            {isPositive ? '+' : ''}${pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {/* Unrealized P&L */}
+        <div className="portfolio-card">
+          <div className="portfolio-card-label">Unrealized P&L</div>
+          <div className={`portfolio-card-value ${pnlIsUp ? 'price-up' : 'price-down'}`}>
+            {pnlIsUp ? '+' : ''}₹{fmt(liveTotalPnL)}
           </div>
-          <div className={`text-sm mt-1 font-medium ${isPositive ? 'text-emerald-400/80' : 'text-red-400/80'}`}>
-            {isPositive ? '▲' : '▼'} {pnlPct.toFixed(2)}% All-time
+          <div className={`portfolio-pnl-pct ${pnlIsUp ? 'price-up' : 'price-down'}`}>
+            {pnlIsUp ? '▲' : '▼'} {liveTotalPnLPct.toFixed(2)}% overall
           </div>
-        </Card>
+        </div>
       </div>
 
-      <Card title={`Holdings (${portfolio?.holdingsCount || 0})`} noPadding>
-        {portfolio?.holdings.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            Your portfolio is empty. <Link to="/market" className="text-indigo-400 hover:underline">Explore the markets</Link>.
+      {/* ── Holdings Table ─────────────────────────────────────────────── */}
+      <div className="data-table-card">
+        <div className="data-table-title">Holdings ({data?.holdingsCount || 0})</div>
+        {holdings.length === 0 ? (
+          <div className="data-empty-state">
+            Portfolio is empty.{' '}
+            <Link to="/market" className="text-indigo-400 hover:underline">Explore markets</Link>.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-white/5 border-b border-white/10 text-gray-400">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Asset</th>
-                  <th className="px-6 py-4 font-medium text-right">Quantity</th>
-                  <th className="px-6 py-4 font-medium text-right">Avg Cost</th>
-                  <th className="px-6 py-4 font-medium text-right">Current Price</th>
-                  <th className="px-6 py-4 font-medium text-right">Total Value</th>
-                  <th className="px-6 py-4 font-medium text-right">Unrealized P&L</th>
-                  <th className="px-6 py-4 font-medium text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {sortedHoldings.map((h) => {
-                  const hpnl = parseFloat(h.unrealizedPnL || '0');
-                  const hpnlPct = parseFloat(h.unrealizedPnLPct || '0');
-                  const hIsPositive = hpnl >= 0;
-                  
-                  return (
-                    <tr key={h.symbol} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 font-bold text-white">{h.symbol}</td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-300">{h.totalQty.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-400">${parseFloat(h.avgCostBasis).toFixed(2)}</td>
-                      <td className="px-6 py-4 text-right font-mono text-white">${parseFloat(h.currentPrice || '0').toFixed(2)}</td>
-                      <td className="px-6 py-4 text-right font-mono text-white">${parseFloat(h.currentValue || '0').toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className={`px-6 py-4 text-right font-mono ${hIsPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                        <div className="flex items-center justify-end gap-1">
-                          {hIsPositive ? '+' : ''}${hpnl.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </div>
-                        <div className="text-xs opacity-80">{hpnlPct.toFixed(2)}%</div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Link 
-                          to={`/trade/${h.symbol}`} 
-                          className="px-3 py-1.5 text-xs font-medium bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 rounded transition-colors"
-                        >
-                          Trade
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="data-th">Asset</th>
+                <th className="data-th data-th--right">Qty</th>
+                <th className="data-th data-th--right">Avg Cost (₹)</th>
+                <th className="data-th data-th--right">LTP (₹)</th>
+                <th className="data-th data-th--right">Value (₹)</th>
+                <th className="data-th data-th--right">P&L (₹)</th>
+                <th className="data-th data-th--center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdings.map((h) => {
+                const hUp = h.unrealizedPnL >= 0;
+                return (
+                  <tr key={h.symbol} className="data-row">
+                    <td className="data-td">
+                      <span className="market-symbol-badge">{h.symbol}</span>
+                    </td>
+                    <td className="data-td data-td--right data-td--mono">{h.totalQty.toLocaleString('en-IN')}</td>
+                    <td className="data-td data-td--right data-td--mono text-gray-400">
+                      ₹{fmt(parseFloat(h.avgCostBasis))}
+                    </td>
+                    <td className="data-td data-td--right data-td--mono">₹{fmt(h.currentPrice)}</td>
+                    <td className="data-td data-td--right data-td--mono">₹{fmt(h.currentValue)}</td>
+                    <td className="data-td data-td--right">
+                      <div className={hUp ? 'price-up' : 'price-down'}>
+                        {hUp ? '+' : ''}₹{fmt(h.unrealizedPnL)}
+                      </div>
+                      <div className={`text-xs ${hUp ? 'price-up' : 'price-down'} opacity-80`}>
+                        {h.unrealizedPnLPct.toFixed(2)}%
+                      </div>
+                    </td>
+                    <td className="data-td data-td--center">
+                      <Link to={`/trade/${h.symbol}`} className="market-trade-btn">Trade</Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
-      </Card>
+      </div>
     </div>
   );
 };

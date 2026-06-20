@@ -38,7 +38,7 @@ export const placeOrderValidator = [
 
 export const listOrdersValidator = [
   query('page').optional().isInt({ min: 1 }).withMessage('page must be a positive integer'),
-  query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('limit must be 1–100'),
+  query('limit').optional().isInt({ min: 1, max: 500 }).withMessage('limit must be 1–500'),
   query('status').optional().isIn(['PENDING','OPEN','PARTIAL','FILLED','CANCELLED','REJECTED']),
   query('side').optional().isIn(['BUY', 'SELL']),
   query('symbol').optional().trim().toUpperCase(),

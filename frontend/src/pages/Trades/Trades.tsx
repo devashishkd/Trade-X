@@ -1,108 +1,179 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Card } from '../../components/UI/Card';
 import { apiClient } from '../../services/apiClient';
+import { History } from 'lucide-react';
 
 interface TradeRecord {
-  _id: string;
-  tradeId: string;
-  orderId: string;
-  symbol: string;
-  side: 'BUY' | 'SELL';
-  price: string | { $numberDecimal: string };
-  quantity: number;
-  fee: string | { $numberDecimal: string };
-  total: string | { $numberDecimal: string };
+  _id:        string;
+  tradeId:    string;
+  symbol:     string;
+  side:       'BUY' | 'SELL';
+  price:      any;
+  quantity:   number;
+  fee:        any;
+  total:      any;
   executedAt: string;
 }
 
+type SideFilter = 'ALL' | 'BUY' | 'SELL';
+
+const parseNum = (v: any) => {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return parseFloat(v) || 0;
+  if (v?.$numberDecimal)     return parseFloat(v.$numberDecimal) || 0;
+  return 0;
+};
+
+const fmt = (v: number) =>
+  v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const istTime = (iso: string) =>
+  new Date(iso).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short', year: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+
 export const Trades: React.FC = () => {
-  const [trades, setTrades] = useState<TradeRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [trades,    setTrades]    = useState<TradeRecord[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [sideTab,   setSideTab]   = useState<SideFilter>('ALL');
+  const [symFilter, setSymFilter] = useState('ALL');
 
   useEffect(() => {
-    const fetchTrades = async () => {
-      try {
-        const res = await apiClient.get('/portfolio/trades?limit=100');
-        if (res.data.success) {
-          setTrades(res.data.data.trades || res.data.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch trades', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTrades();
+    apiClient.get('/portfolio/trades?limit=500').then((res) => {
+      if (res.data.success) setTrades(res.data.data.trades || res.data.data);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
-  const getDecimalValue = (val: string | { $numberDecimal: string } | undefined | null) => {
-    if (!val) return '0';
-    if (typeof val === 'string') return val;
-    return val.$numberDecimal || '0';
-  };
+  // Unique symbols for filter dropdown
+  const symbols = useMemo(() => {
+    const set = new Set(trades.map((t) => t.symbol));
+    return ['ALL', ...Array.from(set).sort()];
+  }, [trades]);
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-full"><div className="animate-pulse text-indigo-400">Loading Trade History...</div></div>;
+  const filtered = useMemo(() =>
+    trades.filter((t) => {
+      const sideOk = sideTab === 'ALL' || t.side === sideTab;
+      const symOk  = symFilter === 'ALL' || t.symbol === symFilter;
+      return sideOk && symOk;
+    }),
+  [trades, sideTab, symFilter]);
+
+  // ── Summary stats ───────────────────────────────────────────────────────────
+  const stats = useMemo(() => {
+    const totalBuyVal  = trades.filter((t) => t.side === 'BUY') .reduce((s, t) => s + parseNum(t.total), 0);
+    const totalSellVal = trades.filter((t) => t.side === 'SELL').reduce((s, t) => s + parseNum(t.total), 0);
+    const totalFees    = trades.reduce((s, t) => s + parseNum(t.fee), 0);
+    return { count: trades.length, totalBuyVal, totalSellVal, totalFees };
+  }, [trades]);
+
+  if (loading) {
+    return <div className="page-loading"><div className="chart-loading-spinner" /><span>Loading trade history…</span></div>;
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-white">Trade History</h1>
-
-      <Card noPadding>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white/5 border-b border-white/10 text-gray-400">
-              <tr>
-                <th className="px-6 py-4 font-medium">Time</th>
-                <th className="px-6 py-4 font-medium">Symbol</th>
-                <th className="px-6 py-4 font-medium">Side</th>
-                <th className="px-6 py-4 font-medium text-right">Price</th>
-                <th className="px-6 py-4 font-medium text-right">Quantity</th>
-                <th className="px-6 py-4 font-medium text-right">Fee</th>
-                <th className="px-6 py-4 font-medium text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {trades.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
-                    You haven't made any trades yet. <Link to="/market" className="text-indigo-400 hover:underline">Go to Market</Link>
-                  </td>
-                </tr>
-              ) : (
-                trades.map((t) => {
-                  const price = parseFloat(getDecimalValue(t.price));
-                  const fee = parseFloat(getDecimalValue(t.fee));
-                  const total = parseFloat(getDecimalValue(t.total));
-                  const isBuy = t.side === 'BUY';
-
-                  return (
-                    <tr key={t._id || t.tradeId} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 text-gray-400 whitespace-nowrap">
-                        {new Date(t.executedAt).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4 font-bold text-white">
-                        <Link to={`/trade/${t.symbol}`} className="hover:text-indigo-400 transition-colors">{t.symbol}</Link>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${isBuy ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-                          {t.side}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-300">${price.toFixed(2)}</td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-300">{t.quantity}</td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-500">${fee.toFixed(2)}</td>
-                      <td className="px-6 py-4 text-right font-mono text-white">${total.toFixed(2)}</td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+    <div className="data-page">
+      <div className="data-page-header">
+        <div>
+          <h1 className="data-page-title flex items-center gap-2">
+            <History className="w-5 h-5 text-indigo-400" /> Trade History
+          </h1>
+          <p className="data-page-sub">{trades.length} trades executed</p>
         </div>
-      </Card>
+      </div>
+
+      {/* ── Stats Bar ─────────────────────────────────────────────────── */}
+      <div className="trades-stats-bar">
+        {[
+          { label: 'Total Trades',   value: stats.count.toLocaleString('en-IN'), color: '' },
+          { label: 'Total Bought',   value: `₹${fmt(stats.totalBuyVal)}`,  color: 'price-up' },
+          { label: 'Total Sold',     value: `₹${fmt(stats.totalSellVal)}`, color: 'price-down' },
+          { label: 'Fees Paid',      value: `₹${fmt(stats.totalFees)}`,    color: 'text-gray-400' },
+        ].map(({ label, value, color }) => (
+          <div key={label} className="trades-stat-item">
+            <div className="trades-stat-label">{label}</div>
+            <div className={`trades-stat-value ${color}`}>{value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Filters ───────────────────────────────────────────────────── */}
+      <div className="trades-filters">
+        {/* Side tabs */}
+        <div className="filter-tabs">
+          {(['ALL', 'BUY', 'SELL'] as SideFilter[]).map((s) => (
+            <button
+              key={s}
+              id={`trades-tab-${s.toLowerCase()}`}
+              onClick={() => setSideTab(s)}
+              className={`filter-tab ${sideTab === s ? 'filter-tab--active' : ''} ${s === 'BUY' && sideTab === 'BUY' ? 'filter-tab--buy' : ''} ${s === 'SELL' && sideTab === 'SELL' ? 'filter-tab--sell' : ''}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+
+        {/* Symbol dropdown */}
+        <select
+          value={symFilter}
+          onChange={(e) => setSymFilter(e.target.value)}
+          className="trades-sym-select"
+          id="trades-symbol-filter"
+        >
+          {symbols.map((sym) => (
+            <option key={sym} value={sym}>{sym === 'ALL' ? 'All Symbols' : sym}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* ── Table ─────────────────────────────────────────────────────── */}
+      <div className="data-table-card">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className="data-th">Time (IST)</th>
+              <th className="data-th">Symbol</th>
+              <th className="data-th">Side</th>
+              <th className="data-th data-th--right">Price (₹)</th>
+              <th className="data-th data-th--right">Qty</th>
+              <th className="data-th data-th--right">Fee (₹)</th>
+              <th className="data-th data-th--right">Total (₹)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="data-td-empty">
+                  No trades found.{' '}
+                  <Link to="/market" className="text-indigo-400 hover:underline">Go to Market</Link>
+                </td>
+              </tr>
+            ) : (
+              filtered.map((t) => {
+                const isBuy = t.side === 'BUY';
+                return (
+                  <tr key={t._id || t.tradeId} className="data-row">
+                    <td className="data-td text-gray-400 text-xs whitespace-nowrap">{istTime(t.executedAt)}</td>
+                    <td className="data-td">
+                      <Link to={`/trade/${t.symbol}`}>
+                        <span className="market-symbol-badge">{t.symbol}</span>
+                      </Link>
+                    </td>
+                    <td className="data-td">
+                      <span className={`side-badge ${isBuy ? 'side-badge--buy' : 'side-badge--sell'}`}>{t.side}</span>
+                    </td>
+                    <td className="data-td data-td--right data-td--mono">₹{fmt(parseNum(t.price))}</td>
+                    <td className="data-td data-td--right data-td--mono">{t.quantity.toLocaleString('en-IN')}</td>
+                    <td className="data-td data-td--right data-td--mono text-gray-500">₹{fmt(parseNum(t.fee))}</td>
+                    <td className="data-td data-td--right data-td--mono">₹{fmt(parseNum(t.total))}</td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

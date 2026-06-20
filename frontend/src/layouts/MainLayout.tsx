@@ -1,83 +1,147 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { LayoutDashboard, TrendingUp, Briefcase, ListOrdered, History, Wallet, LogOut } from 'lucide-react';
+import { apiClient } from '../services/apiClient';
+import {
+  LayoutDashboard, TrendingUp, Briefcase, ListOrdered,
+  History, Wallet, LogOut, ChevronRight, Activity,
+} from 'lucide-react';
+
+const NAV_ITEMS = [
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Market',    href: '/market',    icon: TrendingUp },
+  { name: 'Portfolio', href: '/portfolio', icon: Briefcase },
+  { name: 'Orders',    href: '/orders',    icon: ListOrdered },
+  { name: 'Trades',    href: '/trades',    icon: History },
+  { name: 'Wallet',    href: '/wallet',    icon: Wallet },
+];
+
+/** Format INR with en-IN locale */
+const formatINR = (val: number) =>
+  val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** IST clock — updates every second */
+function useISTClock() {
+  const [time, setTime] = useState('');
+  useEffect(() => {
+    const tick = () =>
+      setTime(
+        new Date().toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      );
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
 
 export const MainLayout: React.FC = () => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const logout = useAuthStore((state) => state.logout);
-  const location = useLocation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout          = useAuthStore((s) => s.logout);
+  const user            = useAuthStore((s) => s.user);
+  const location        = useLocation();
+  const istTime         = useISTClock();
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  const [balance, setBalance] = useState<{ available: number; total: number } | null>(null);
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Market', href: '/market', icon: TrendingUp },
-    { name: 'Portfolio', href: '/portfolio', icon: Briefcase },
-    { name: 'Orders', href: '/orders', icon: ListOrdered },
-    { name: 'Trades', href: '/trades', icon: History },
-    { name: 'Wallet', href: '/wallet', icon: Wallet },
-  ];
+  // Fetch wallet balance once on mount
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    apiClient.get('/wallet/balance').then((res) => {
+      if (res.data.success) {
+        const d = res.data.data;
+        const avail = parseFloat(d.availableBalance || '0');
+        const locked = parseFloat(d.lockedBalance || '0');
+        setBalance({ available: avail, total: avail + locked });
+      }
+    }).catch(() => {});
+  }, [isAuthenticated]);
+
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // Derive user initial for avatar
+  const initial = (user?.username || user?.email || 'U')[0].toUpperCase();
+  const isTradePage = location.pathname.startsWith('/trade/');
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-300 flex">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-slate-900/50 flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold text-white tracking-wider">TRADE-X</h1>
+    <div className="main-layout">
+      {/* ── Sidebar ───────────────────────────────────────────────────── */}
+      <aside className="sidebar">
+        {/* Brand */}
+        <div className="sidebar-brand">
+          <div className="sidebar-logo">
+            <Activity className="w-5 h-5 text-white" />
+          </div>
+          <span className="sidebar-brand-name">Trade-X</span>
         </div>
-        <nav className="flex-1 py-4 flex flex-col gap-1 px-3">
-          {navigation.map((item) => {
-            const isActive = location.pathname.startsWith(item.href);
+
+        {/* Navigation */}
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map(({ name, href, icon: Icon }) => {
+            const isActive = location.pathname.startsWith(href);
             return (
               <Link
-                key={item.name}
-                to={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                  isActive 
-                    ? 'bg-emerald-500/10 text-emerald-400' 
-                    : 'hover:bg-slate-800 hover:text-slate-100'
-                }`}
+                key={name}
+                to={href}
+                id={`nav-${name.toLowerCase()}`}
+                className={`sidebar-nav-item ${isActive ? 'sidebar-nav-item--active' : ''}`}
               >
-                <item.icon className="w-5 h-5" />
-                <span className="font-medium">{item.name}</span>
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                <span>{name}</span>
+                {isActive && <ChevronRight className="w-3 h-3 ml-auto opacity-60" />}
               </Link>
             );
           })}
         </nav>
-        <div className="p-4 border-t border-slate-800">
-          <button 
-            onClick={logout}
-            className="flex items-center gap-3 w-full px-3 py-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-md transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
+
+        {/* User + Logout */}
+        <div className="sidebar-footer">
+          <div className="sidebar-user">
+            <div className="sidebar-avatar">{initial}</div>
+            <div className="sidebar-user-info">
+              <div className="sidebar-username">{user?.username || 'Trader'}</div>
+              <div className="sidebar-email">{user?.email || ''}</div>
+            </div>
+          </div>
+          <button onClick={logout} className="sidebar-logout" title="Logout">
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-800 bg-slate-900/30 flex items-center justify-between px-8">
-          <div className="text-sm text-slate-400">
-            Market is <span className="text-emerald-400 font-medium">Open</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <div className="text-xs text-slate-400">Total Balance</div>
-              <div className="text-sm font-semibold text-white">$24,500.00</div>
+      {/* ── Main Content ──────────────────────────────────────────────── */}
+      <div className="main-content">
+        {/* Top header */}
+        <header className="main-header">
+          <div className="header-left">
+            <div className="header-market-status">
+              <span className="market-dot" />
+              <span>NSE <span className="text-emerald-400 font-semibold">Open</span></span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-sm font-bold text-white">
-              U
+            <div className="header-time">{istTime} IST</div>
+          </div>
+
+          <div className="header-right">
+            {balance && (
+              <div className="header-balance">
+                <div className="header-balance-label">Portfolio</div>
+                <div className="header-balance-value">₹{formatINR(balance.total)}</div>
+              </div>
+            )}
+            <div className="header-avatar" title={user?.username}>
+              {initial}
             </div>
           </div>
         </header>
 
-        {/* Dynamic Page Content */}
-        <main className="flex-1 overflow-auto p-8">
+        {/* Page content — no padding on TradePage (it manages its own) */}
+        <main className={`main-page ${isTradePage ? 'main-page--trade' : ''}`}>
           <Outlet />
         </main>
       </div>

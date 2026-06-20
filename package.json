@@ -17,7 +17,8 @@
     "dev:frontend":  "npm run dev --workspace=@trade-x/frontend",
     "dev:bot":       "ts-node backend/matching-engine/src/market-maker.ts",
     "dev:all":       "concurrently \"npm:dev:auth\" \"npm:dev:orders\" \"npm:dev:engine\" \"npm:dev:portfolio\" \"npm:dev:market\" \"npm:dev:gateway\" \"npm:dev:frontend\"",
-    "test:load":     "tsx load_test.ts"
+    "reset:db":      "npx tsx reset_db.ts",
+    "sim":           "npx tsx simulation.ts"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

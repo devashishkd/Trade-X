@@ -53,7 +53,8 @@ export const getHistory = async (
   try {
     const { symbol } = req.params;
     const timeframe = (req.query.timeframe as string) || '1D';
-    const history = await marketDataService.getHistory(symbol, timeframe);
+    const range = (req.query.range as string) || '1Y';
+    const history = await marketDataService.getHistory(symbol, timeframe, range);
     res.status(200).json(successResponse(history));
   } catch (err) { next(err); }
 };

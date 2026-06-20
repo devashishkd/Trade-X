@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import express, { Request, Response, NextFunction } from 'express';
 import cors   from 'cors';
 import helmet from 'helmet';
@@ -8,6 +9,7 @@ import marketRoutes       from './routes/market.routes';
 import internalRoutes     from './routes/internal.routes';
 import { seedSymbols }    from './seed/symbols.seed';
 import { seedHistory }    from './seed/history.seed';
+import { initSocket }     from './socket/marketSocket';
 import { AppError, errorResponse, createLogger } from '@trade-x/shared';
 
 const logger = createLogger('market-data-service');
@@ -50,16 +52,23 @@ const start = async (): Promise<void> => {
   await seedSymbols();
   await seedHistory();
 
-  app.listen(PORT, () => {
-    logger.info(`Market Data Service running on http://localhost:${PORT}`);
-    logger.info('Routes:');
+  // Wrap express in a raw HTTP server so Socket.IO can share the same port
+  const httpServer = http.createServer(app);
+  initSocket(httpServer);
+
+  httpServer.listen(PORT, () => {
+    logger.info(`Market Data Service + Socket.IO running on http://localhost:${PORT}`);
+    logger.info('REST routes:');
     logger.info('  GET  /market/symbols');
     logger.info('  GET  /market/:symbol/quote');
     logger.info('  GET  /market/:symbol/depth');
     logger.info('  GET  /market/:symbol/trades');
+    logger.info('  GET  /market/:symbol/history');
     logger.info('  POST /internal/market/trade-executed');
-    logger.info('  GET  /internal/market/:symbol/ltp');
-    logger.info('  POST /internal/market/batch-ltp');
+    logger.info('Socket.IO events:');
+    logger.info('  subscribe(symbol)   → join room');
+    logger.info('  unsubscribe(symbol) → leave room');
+    logger.info('  emit: ticker_update | candle_update | trade');
   });
 };
 

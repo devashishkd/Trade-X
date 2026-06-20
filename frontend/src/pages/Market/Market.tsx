@@ -1,107 +1,223 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Card } from '../../components/UI/Card';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/apiClient';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { SparklineChart } from '../../components/Trading/SparklineChart';
+import { subscribeToSymbol, unsubscribeFromSymbol } from '../../services/socket';
+import type { TickerUpdate } from '../../services/socket';
+import { TrendingUp, TrendingDown, Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface MarketSymbol {
-  symbol: string;
-  name: string;
-  lastTradedPrice: string | { $numberDecimal: string };
-  change: string | { $numberDecimal: string };
-  changePct: string | { $numberDecimal: string };
-  volume: number;
+  symbol:         string;
+  name:           string;
+  lastTradedPrice: number;
+  change:          number;
+  changePct:       number;
+  volume:          number;
+  sparkline?:      { time: number; value: number }[];
 }
 
+type SortKey = 'symbol' | 'lastTradedPrice' | 'changePct' | 'volume';
+type SortDir = 'asc' | 'desc';
+
+const fmt = (v: number) =>
+  v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export const Market: React.FC = () => {
-  const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+  const [symbols,  setSymbols]  = useState<MarketSymbol[]>([]);
+  const [loading,  setLoading]  = useState(true);
+  const [query,    setQuery]    = useState('');
+  const [sortKey,  setSortKey]  = useState<SortKey>('volume');
+  const [sortDir,  setSortDir]  = useState<SortDir>('desc');
+  const [flashing, setFlashing] = useState<Record<string, 'up' | 'down'>>({});
 
-  useEffect(() => {
-    const fetchSymbols = async () => {
-      try {
-        const res = await apiClient.get('/market/symbols');
-        if (res.data.success) {
-          setSymbols(res.data.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch market symbols', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchSymbols();
-  }, []);
-
-  const getDecimalValue = (val: string | { $numberDecimal: string } | undefined | null) => {
-    if (!val) return '0';
-    if (typeof val === 'string') return val;
-    return val.$numberDecimal || '0';
+  // ── Parse raw API value ─────────────────────────────────────────────────────
+  const parseVal = (v: any): number => {
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') return parseFloat(v) || 0;
+    if (v?.$numberDecimal) return parseFloat(v.$numberDecimal) || 0;
+    return 0;
   };
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-full"><div className="animate-pulse text-indigo-400">Loading Market Data...</div></div>;
+  // ── Initial load ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    apiClient.get('/market/symbols').then((res) => {
+      if (res.data.success) {
+        const rows: MarketSymbol[] = res.data.data.map((s: any) => ({
+          symbol:         s.symbol,
+          name:           s.name || s.symbol,
+          lastTradedPrice: parseVal(s.lastTradedPrice),
+          change:          parseVal(s.change),
+          changePct:       parseVal(s.changePct),
+          volume:          s.volume || 0,
+        }));
+        setSymbols(rows);
+
+        // Fetch sparklines for each symbol in the background
+        rows.forEach((row) => {
+          apiClient.get(`/market/${row.symbol}/history?timeframe=1D&range=1M`)
+            .then((r) => {
+              if (r.data.success && r.data.data.length > 0) {
+                setSymbols((prev) =>
+                  prev.map((s) =>
+                    s.symbol === row.symbol
+                      ? { ...s, sparkline: r.data.data.map((d: any) => ({ time: d.time, value: d.close })) }
+                      : s
+                  )
+                );
+              }
+            }).catch(() => {});
+        });
+      }
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  // ── Live WS price updates ───────────────────────────────────────────────────
+  const handleTicker = useCallback((data: TickerUpdate) => {
+    setSymbols((prev) =>
+      prev.map((s) => {
+        if (s.symbol !== data.symbol) return s;
+        const isUp = data.lastTradedPrice >= s.lastTradedPrice;
+        setFlashing((f) => ({ ...f, [data.symbol]: isUp ? 'up' : 'down' }));
+        setTimeout(() => setFlashing((f) => { const n = { ...f }; delete n[data.symbol]; return n; }), 600);
+        return {
+          ...s,
+          lastTradedPrice: data.lastTradedPrice,
+          change:          data.change,
+          changePct:       data.changePct,
+          volume:          data.volume,
+        };
+      })
+    );
+  }, []);
+
+  useEffect(() => {
+    symbols.forEach((s) => subscribeToSymbol(s.symbol, { onTicker: handleTicker }));
+    return () => { symbols.forEach((s) => unsubscribeFromSymbol(s.symbol)); };
+  }, [symbols.length, handleTicker]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Sort + Filter ───────────────────────────────────────────────────────────
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('desc'); }
+  };
+
+  const displayed = useMemo(() => {
+    const q = query.toLowerCase();
+    const filtered = symbols.filter(
+      (s) => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+    );
+    return [...filtered].sort((a, b) => {
+      const av = a[sortKey] as number | string;
+      const bv = b[sortKey] as number | string;
+      const cmp = typeof av === 'string' ? av.localeCompare(bv as string) : (av as number) - (bv as number);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [symbols, query, sortKey, sortDir]);
+
+  const SortIcon = ({ k }: { k: SortKey }) =>
+    sortKey === k
+      ? (sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)
+      : <ArrowUpDown className="w-3 h-3 opacity-30" />;
+
+  if (loading) {
+    return <div className="page-loading"><div className="chart-loading-spinner" /><span>Loading market data…</span></div>;
   }
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-white">Market Overview</h1>
-
-      <Card noPadding>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white/5 border-b border-white/10 text-gray-400">
-              <tr>
-                <th className="px-6 py-4 font-medium">Symbol</th>
-                <th className="px-6 py-4 font-medium">Name</th>
-                <th className="px-6 py-4 font-medium text-right">Price</th>
-                <th className="px-6 py-4 font-medium text-right">24h Change</th>
-                <th className="px-6 py-4 font-medium text-right">Volume</th>
-                <th className="px-6 py-4 font-medium text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {symbols.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    No market data available.
-                  </td>
-                </tr>
-              ) : (
-                symbols.map((s) => {
-                  const price = parseFloat(getDecimalValue(s.lastTradedPrice));
-                  const change = parseFloat(getDecimalValue(s.change));
-                  const changePct = parseFloat(getDecimalValue(s.changePct));
-                  const isPositive = change >= 0;
-
-                  return (
-                    <tr key={s.symbol} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 font-bold text-white">{s.symbol}</td>
-                      <td className="px-6 py-4 text-gray-300">{s.name}</td>
-                      <td className="px-6 py-4 text-right font-mono text-white">${price.toFixed(2)}</td>
-                      <td className={`px-6 py-4 text-right font-mono ${isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
-                        <div className="flex items-center justify-end gap-1">
-                          {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                          {isPositive ? '+' : ''}{change.toFixed(2)} ({changePct.toFixed(2)}%)
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono text-gray-400">{s.volume.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-center">
-                        <Link 
-                          to={`/trade/${s.symbol}`} 
-                          className="px-3 py-1.5 text-xs font-medium bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 rounded transition-colors"
-                        >
-                          Trade
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+    <div className="data-page">
+      <div className="data-page-header">
+        <div>
+          <h1 className="data-page-title">Market Overview</h1>
+          <p className="data-page-sub">{symbols.length} symbols · Live NSE data</p>
         </div>
-      </Card>
+        {/* Search */}
+        <div className="market-search-box">
+          <Search className="w-4 h-4 text-gray-500" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search symbol or name…"
+            className="market-search-input"
+            id="market-search"
+          />
+        </div>
+      </div>
+
+      <div className="data-table-card">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th className="data-th" onClick={() => toggleSort('symbol')}>
+                <span>Symbol</span><SortIcon k="symbol" />
+              </th>
+              <th className="data-th">Name</th>
+              <th className="data-th data-th--right" onClick={() => toggleSort('lastTradedPrice')}>
+                <span>Price (₹)</span><SortIcon k="lastTradedPrice" />
+              </th>
+              <th className="data-th data-th--right" onClick={() => toggleSort('changePct')}>
+                <span>Change</span><SortIcon k="changePct" />
+              </th>
+              <th className="data-th data-th--right" onClick={() => toggleSort('volume')}>
+                <span>Volume</span><SortIcon k="volume" />
+              </th>
+              <th className="data-th data-th--center">7D Chart</th>
+              <th className="data-th data-th--center">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayed.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="data-td-empty">No symbols match "{query}"</td>
+              </tr>
+            ) : (
+              displayed.map((s) => {
+                const isUp = s.changePct >= 0;
+                const flash = flashing[s.symbol];
+                return (
+                  <tr
+                    key={s.symbol}
+                    className={`data-row ${flash === 'up' ? 'data-row--flash-up' : flash === 'down' ? 'data-row--flash-down' : ''}`}
+                    onClick={() => navigate(`/trade/${s.symbol}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <td className="data-td">
+                      <span className="market-symbol-badge">{s.symbol}</span>
+                    </td>
+                    <td className="data-td market-name-cell">{s.name}</td>
+                    <td className="data-td data-td--right data-td--mono">₹{fmt(s.lastTradedPrice)}</td>
+                    <td className="data-td data-td--right">
+                      <div className={`market-change-pill ${isUp ? 'market-change-pill--up' : 'market-change-pill--down'}`}>
+                        {isUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {isUp ? '+' : ''}{s.changePct.toFixed(2)}%
+                      </div>
+                    </td>
+                    <td className="data-td data-td--right data-td--mono text-gray-400">
+                      {s.volume.toLocaleString('en-IN')}
+                    </td>
+                    <td className="data-td data-td--center">
+                      <div className="market-sparkline">
+                        {s.sparkline && s.sparkline.length > 0 && (
+                          <SparklineChart data={s.sparkline} color={isUp ? '#26a69a' : '#ef5350'} isPositive={isUp} />
+                        )}
+                      </div>
+                    </td>
+                    <td className="data-td data-td--center" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => navigate(`/trade/${s.symbol}`)}
+                        className="market-trade-btn"
+                        id={`trade-${s.symbol}`}
+                      >
+                        Trade
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
