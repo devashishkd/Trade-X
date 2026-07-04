@@ -1,0 +1,14 @@
+node_modules/
+backend/*/node_modules/
+frontend/node_modules/
+shared/node_modules/
+.git/
+.vscode/
+dist/
+backend/*/dist/
+frontend/dist/
+.env
+.DS_Store
+*.log
+brain/
+.gemini/

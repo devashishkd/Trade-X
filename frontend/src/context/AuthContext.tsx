@@ -41,8 +41,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         logout();
       }
-    } catch (error) {
-      logout();
+    } catch (error: any) {
+      // Only logout on an explicit 401 (invalid/expired token).
+      // Network errors, timeouts, or backend not ready should NOT clear the session.
+      if (error?.response?.status === 401) {
+        logout();
+      }
     } finally {
       setIsLoading(false);
     }

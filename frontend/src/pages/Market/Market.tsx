@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/apiClient';
 import { SparklineChart } from '../../components/Trading/SparklineChart';
@@ -73,7 +73,11 @@ export const Market: React.FC = () => {
   }, []);
 
   // ── Live WS price updates ───────────────────────────────────────────────────
-  const handleTicker = useCallback((data: TickerUpdate) => {
+  // tickerHandlerRef always holds the latest handler but has a stable identity,
+  // so the subscription effect never needs to re-fire just because prices changed.
+  const tickerHandlerRef = useRef<(data: TickerUpdate) => void>(() => {});
+
+  tickerHandlerRef.current = (data: TickerUpdate) => {
     setSymbols((prev) =>
       prev.map((s) => {
         if (s.symbol !== data.symbol) return s;
@@ -89,12 +93,24 @@ export const Market: React.FC = () => {
         };
       })
     );
-  }, []);
+  };
+
+  // A single stable wrapper created once — same reference held by socket.ts forever.
+  const stableHandlerRef = useRef<(data: TickerUpdate) => void>((data) => tickerHandlerRef.current(data));
+
+  // Drive subscriptions off a stable string key (sorted symbol names).
+  // This only changes when the SET of symbols changes, not on every price tick.
+  const symbolNamesKey = useMemo(
+    () => symbols.map((s) => s.symbol).sort().join(','),
+    [symbols.map((s) => s.symbol).join(',')]  // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   useEffect(() => {
-    symbols.forEach((s) => subscribeToSymbol(s.symbol, { onTicker: handleTicker }));
-    return () => { symbols.forEach((s) => unsubscribeFromSymbol(s.symbol)); };
-  }, [symbols.length, handleTicker]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!symbolNamesKey) return;
+    const symbolList = symbolNamesKey.split(',');
+    symbolList.forEach((sym) => subscribeToSymbol(sym, { onTicker: stableHandlerRef.current }));
+    return () => { symbolList.forEach((sym) => unsubscribeFromSymbol(sym)); };
+  }, [symbolNamesKey]); // only re-subscribes when the set of symbols actually changes
 
   // ── Sort + Filter ───────────────────────────────────────────────────────────
   const toggleSort = (key: SortKey) => {

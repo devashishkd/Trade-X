@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   createChart,
   CandlestickSeries,
@@ -13,14 +13,14 @@ import {
 import type { Candle, ComputedIndicators, Timeframe, IndicatorType } from '../types/chart.types';
 import { useChartViewportStore } from '../stores/useChartViewportStore';
 
-// ── Chart Theme (Zerodha Kite dark palette) ────────────────────────────────────
+// ── Chart Theme (Ultra Premium Pure Black) ────────────────────────────────────
 const THEME = {
-  bg: '#131722',
-  grid: '#1e2436',
-  text: '#d1d4dc',
-  border: '#2B2B43',
-  candleUp: '#26a69a',
-  candleDown: '#ef5350',
+  bg: '#0b0e14',
+  grid: '#151822',
+  text: '#848e9c',
+  border: '#1f2430',
+  candleUp: '#0ecb81',
+  candleDown: '#f6465d',
 } as const;
 
 interface CandlestickChartProps {
@@ -28,15 +28,6 @@ interface CandlestickChartProps {
   activeTimeframe: Timeframe;
   activeIndicators: IndicatorType[];
   indicatorData: ComputedIndicators;
-}
-
-interface OHLCVInfo {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-  time: number;
 }
 
 export const CandlestickChart: React.FC<CandlestickChartProps> = ({
@@ -74,7 +65,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         background: { color: THEME.bg },
         textColor: THEME.text,
         fontFamily: "'Inter', 'Outfit', sans-serif",
-        fontSize: 11,
+        fontSize: 12,
       },
       grid: {
         vertLines: { color: THEME.grid, style: 1 },
@@ -82,21 +73,24 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2B2B43' },
-        horzLine: { color: '#758696', width: 1, style: 3, labelBackgroundColor: '#2B2B43' },
+        vertLine: { color: '#4b5563', width: 1, style: 3, labelBackgroundColor: '#1f2430' },
+        horzLine: { color: '#4b5563', width: 1, style: 3, labelBackgroundColor: '#1f2430' },
       },
       timeScale: {
         borderColor: THEME.border,
-        timeVisible: activeTimeframe === '4H',
+        timeVisible: true,
         secondsVisible: false,
-        rightOffset: 12,
+        rightOffset: 15,
+        barSpacing: 12,
+        minBarSpacing: 4,
         shiftVisibleRangeOnNewBar: true,
-        tickMarkFormatter: undefined,
+        fixLeftEdge: false,
+        fixRightEdge: false,
       },
       rightPriceScale: {
         borderColor: THEME.border,
         autoScale: true,
-        scaleMargins: { top: 0.08, bottom: 0.2 },
+        scaleMargins: { top: 0.1, bottom: 0.2 },
       },
       width: containerRef.current.clientWidth,
       height: containerRef.current.clientHeight,
@@ -283,7 +277,12 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
       candleSeriesRef.current.setData(ohlcv);
       volumeSeriesRef.current.setData(vol);
-      chartRef.current?.timeScale().fitContent();
+      
+      if (curr.length < 50) {
+        chartRef.current?.timeScale().scrollToRealTime();
+      } else {
+        chartRef.current?.timeScale().fitContent();
+      }
     }
 
     prevCandlesRef.current = curr;

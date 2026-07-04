@@ -234,103 +234,100 @@ export const TradePage: React.FC = () => {
   }
 
   return (
-    <div className="trade-page">
+    <div className="trade-page-grid">
       {/* ── Ticker Strip ─────────────────────────────────────────────── */}
-      <div className="trade-ticker-strip">
-        <div className="trade-ticker-left">
-          {/* Dynamic symbol search */}
-          <SymbolSearch
-            current={symbol}
-            symbols={allSymbols}
-            onSelect={(sym) => navigate(`/trade/${sym}`)}
-          />
+      <div className="trade-ticker-area">
+        <div className="trade-ticker-strip">
+          <div className="trade-ticker-left">
+            <SymbolSearch
+              current={symbol}
+              symbols={allSymbols}
+              onSelect={(sym) => navigate(`/trade/${sym}`)}
+            />
 
-          {marketData?.name && (
-            <span className="trade-symbol-name">{marketData.name}</span>
-          )}
+            {marketData?.name && (
+              <span className="trade-symbol-name">{marketData.name}</span>
+            )}
 
-          <div className="trade-ticker-divider" />
+            <div className="trade-ticker-divider" />
 
-          {/* LTP */}
-          <div className={`trade-ltp ${isPositive ? 'price-up' : 'price-down'}`}>
-            ₹{fmt(ltp)}
-          </div>
-
-          {/* Change */}
-          <div className={`trade-change ${isPositive ? 'price-up' : 'price-down'}`}>
-            {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-            {isPositive ? '+' : ''}₹{fmt(change)} ({isPositive ? '+' : ''}{changePct.toFixed(2)}%)
-          </div>
-
-          {/* Live dot */}
-          <div className={`trade-live-badge ${isLive ? 'trade-live-badge--live' : ''}`}>
-            {isLive ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-            {isLive ? 'LIVE' : 'CONNECTING'}
-          </div>
-        </div>
-
-        {/* OHLV stats */}
-        <div className="trade-ticker-stats">
-          {[
-            { label: 'Open',   value: `₹${fmt(marketData?.openPrice || '0')}` },
-            { label: 'High',   value: `₹${fmt(marketData?.highPrice || '0')}` },
-            { label: 'Low',    value: `₹${fmt(marketData?.lowPrice  || '0')}` },
-            { label: 'Volume', value: (marketData?.volume || 0).toLocaleString('en-IN') },
-          ].map(({ label, value }) => (
-            <div key={label} className="trade-stat">
-              <div className="trade-stat-label">{label}</div>
-              <div className="trade-stat-value">{value}</div>
+            <div className={`trade-ltp ${isPositive ? 'price-up' : 'price-down'}`}>
+              ₹{fmt(ltp)}
             </div>
-          ))}
+
+            <div className={`trade-change ${isPositive ? 'price-up' : 'price-down'}`}>
+              {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              {isPositive ? '+' : ''}₹{fmt(change)} ({isPositive ? '+' : ''}{changePct.toFixed(2)}%)
+            </div>
+
+            <div className={`trade-live-badge ${isLive ? 'trade-live-badge--live' : ''}`}>
+              {isLive ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+              {isLive ? 'LIVE' : 'CONNECTING'}
+            </div>
+          </div>
+
+          <div className="trade-ticker-stats">
+            {[
+              { label: 'Open',   value: `₹${fmt(marketData?.openPrice || '0')}` },
+              { label: 'High',   value: `₹${fmt(marketData?.highPrice || '0')}` },
+              { label: 'Low',    value: `₹${fmt(marketData?.lowPrice  || '0')}` },
+              { label: 'Volume', value: (marketData?.volume || 0).toLocaleString('en-IN') },
+            ].map(({ label, value }) => (
+              <div key={label} className="trade-stat">
+                <div className="trade-stat-label">{label}</div>
+                <div className="trade-stat-value">{value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ── Main Area ─────────────────────────────────────────────────── */}
-      <div className="trade-body">
-        {/* Left: Chart + Recent trades */}
-        <div className="trade-left-col">
-          {/* Chart — TradingChartWrapper fills 100% of this container */}
-          <div className="trade-chart-container">
-            <TradingChart
-              symbol={symbol}
-              ltp={ltp}
-              change={change}
-              changePct={changePct}
-            />
-          </div>
+      {/* ── Chart Area ─────────────────────────────────────────────────── */}
+      <div className="trade-chart-area">
+        <TradingChart
+          symbol={symbol}
+          ltp={ltp}
+          change={change}
+          changePct={changePct}
+        />
+      </div>
 
-          {/* Recent Trades feed */}
-          <div className="trade-feed-card">
-            <div className="trade-feed-header">
-              <Clock className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Recent Trades</span>
-            </div>
-            <div className="trade-feed-cols">
-              <span>Price (₹)</span>
-              <span>Qty</span>
-              <span>Time (IST)</span>
-            </div>
-            <div className="trade-feed-list">
-              {recentTrades.length === 0 ? (
-                <div className="trade-feed-empty">No trades yet</div>
-              ) : (
-                recentTrades.map((t) => (
-                  <div key={t.tradeId} className="trade-feed-row">
-                    <span className={t.makerSide === 'SELL' ? 'price-up' : 'price-down'}>
-                      {fmt(t.price)}
-                    </span>
-                    <span className="trade-feed-qty">{t.quantity.toLocaleString('en-IN')}</span>
-                    <span className="trade-feed-time">{istTime(t.executedAt)}</span>
-                  </div>
-                ))
-              )}
-            </div>
+      {/* ── Recent Trades ──────────────────────────────────────────────── */}
+      <div className="trade-recent-trades-area">
+        <div className="trade-feed-card h-full">
+          <div className="trade-feed-header">
+            <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Recent Trades</span>
+          </div>
+          <div className="trade-feed-cols">
+            <span>Price (₹)</span>
+            <span>Qty</span>
+            <span>Time</span>
+          </div>
+          <div className="trade-feed-list">
+            {recentTrades.length === 0 ? (
+              <div className="trade-feed-empty">No trades yet</div>
+            ) : (
+              recentTrades.map((t) => (
+                <div key={t.tradeId} className="trade-feed-row">
+                  <span className={t.makerSide === 'SELL' ? 'price-up' : 'price-down'}>
+                    {fmt(t.price)}
+                  </span>
+                  <span className="trade-feed-qty">{t.quantity.toLocaleString('en-IN')}</span>
+                  <span className="trade-feed-time">{istTime(t.executedAt)}</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Right: Order Book + Order Entry */}
-        <div className="trade-right-col">
+      {/* ── Right Panel (OrderBook + OrderEntry) ─────────────────────── */}
+      <div className="trade-right-panel">
+        <div className="trade-orderbook-area">
           <OrderBook bids={orderBook.bids} asks={orderBook.asks} />
+        </div>
+        <div className="trade-orderentry-area">
           <OrderEntry symbol={symbol} onOrderPlaced={handleOrderPlaced} />
         </div>
       </div>

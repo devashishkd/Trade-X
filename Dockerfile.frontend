@@ -1,0 +1,44 @@
+# Stage 1: Build the React application
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy the monorepo source
+COPY . .
+
+# Install dependencies
+RUN npm ci
+
+# We must pass the API and Socket URLs at build time for Vite
+ARG VITE_API_URL=/api
+ARG VITE_SOCKET_URL=/
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
+
+# Build the shared library first
+RUN npm run build --workspace=@trade-x/shared
+
+# Build the frontend
+RUN npm run build --workspace=@trade-x/frontend
+
+# Stage 2: Serve the static files with Nginx
+FROM nginx:alpine
+
+# Install envsubst (part of gettext) so we can template nginx.conf at runtime
+RUN apk add --no-cache gettext
+
+# Copy nginx config template
+COPY frontend/nginx.conf /etc/nginx/templates/default.conf.template
+
+# Copy built files
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
+
+# Default upstream values (overridden by docker-compose or Render env vars)
+ENV NGINX_API_UPSTREAM=http://api-gateway:3000
+ENV NGINX_SOCKET_UPSTREAM=http://market-data-service:3005
+
+EXPOSE 80
+
+# At startup: substitute env vars into nginx.conf, then start nginx
+CMD ["/bin/sh", "-c", "envsubst '$NGINX_API_UPSTREAM $NGINX_SOCKET_UPSTREAM' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

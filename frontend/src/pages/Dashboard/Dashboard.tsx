@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/apiClient';
-import { useAuthStore } from '../../store/useAuthStore';
-import { TrendingUp, TrendingDown, Wallet, ArrowRight, BarChart2, Activity } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, ArrowRight, Activity } from 'lucide-react';
 import { SparklineChart } from '../../components/Trading/SparklineChart';
 
 interface MarketSymbol {
@@ -111,7 +110,7 @@ const TrendingListItem: React.FC<{ symbol: MarketSymbol, type: 'gainer' | 'loser
 // --- Main Dashboard ---
 
 export const Dashboard: React.FC = () => {
-  const user = useAuthStore(state => state.user);
+
   const [wallet, setWallet] = useState<{ availableBalance: string; lockedBalance: string } | null>(null);
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
   const [isLoading, setIsLoading] = useState(true);

@@ -11,8 +11,11 @@ export interface JwtPayload {
 export const signToken = (payload: JwtPayload): string => {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET not configured');
+  // JWT_EXPIRES_IN can be a numeric string ('86400') or duration string ('7d').
+  // Pass it as-is so jsonwebtoken handles both formats correctly.
+  const expiresIn = process.env.JWT_EXPIRES_IN ?? '86400';
   return jwt.sign(payload, secret, {
-    expiresIn: parseInt(process.env.JWT_EXPIRES_IN ?? '86400'),
+    expiresIn: expiresIn as jwt.SignOptions['expiresIn'],
   });
 };
 

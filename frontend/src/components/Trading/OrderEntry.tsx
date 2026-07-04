@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { Card } from '../UI/Card';
-import { Button } from '../UI/Button';
 import { apiClient } from '../../services/apiClient';
 
 interface OrderEntryProps {
@@ -26,7 +24,7 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ symbol, onOrderPlaced })
     }
 
     if (type === 'LIMIT' && (!price || isNaN(Number(price)) || Number(price) <= 0)) {
-      setError('Enter a valid price for limit order');
+      setError('Enter a valid price');
       return;
     }
 
@@ -50,88 +48,108 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({ symbol, onOrderPlaced })
     }
   };
 
-  return (
-    <Card className="h-full">
-      <div className="flex gap-2 p-1 bg-black/20 rounded-md mb-6">
-        <button
-          onClick={() => setSide('BUY')}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-colors ${side === 'BUY' ? 'bg-emerald-600/20 text-emerald-400' : 'text-gray-400 hover:text-gray-200'}`}
-        >
-          Buy
-        </button>
-        <button
-          onClick={() => setSide('SELL')}
-          className={`flex-1 py-1.5 text-sm font-medium rounded-sm transition-colors ${side === 'SELL' ? 'bg-red-500/20 text-red-400' : 'text-gray-400 hover:text-gray-200'}`}
-        >
-          Sell
-        </button>
-      </div>
+  const isBuy = side === 'BUY';
 
-      <div className="flex gap-4 mb-6 text-sm border-b border-white/10 pb-2">
+  return (
+    <div className="flex flex-col h-full bg-[#151822] p-4">
+      {/* ── Tabs: Limit / Market ───────────────────────────────────── */}
+      <div className="flex gap-4 mb-4 border-b border-[#1f2430]">
         <button
           onClick={() => setType('LIMIT')}
-          className={`pb-2 -mb-[9px] border-b-2 transition-colors ${type === 'LIMIT' ? 'border-indigo-500 text-white font-medium' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
+          className={`pb-2 text-[13px] font-semibold border-b-2 transition-colors ${type === 'LIMIT' ? 'border-[#2962ff] text-white' : 'border-transparent text-[#848e9c] hover:text-[#d1d4dc]'}`}
         >
           Limit
         </button>
         <button
           onClick={() => setType('MARKET')}
-          className={`pb-2 -mb-[9px] border-b-2 transition-colors ${type === 'MARKET' ? 'border-indigo-500 text-white font-medium' : 'border-transparent text-gray-400 hover:text-gray-200'}`}
+          className={`pb-2 text-[13px] font-semibold border-b-2 transition-colors ${type === 'MARKET' ? 'border-[#2962ff] text-white' : 'border-transparent text-[#848e9c] hover:text-[#d1d4dc]'}`}
         >
           Market
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 flex-1">
+      <form onSubmit={handleSubmit} className="flex flex-col flex-1">
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-3 py-2 rounded-md">
+          <div className="mb-4 bg-[#f6465d]/10 border border-[#f6465d]/20 text-[#f6465d] text-xs px-3 py-2 rounded">
             {error}
           </div>
         )}
 
-        {type === 'LIMIT' && (
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Price</label>
-            <div className="relative">
+        <div className="flex flex-col gap-3">
+          {/* Price Input (only for Limit) */}
+          {type === 'LIMIT' && (
+            <div className="relative flex items-center bg-[#0b0e14] border border-[#1f2430] rounded focus-within:border-[#2962ff] transition-colors">
+              <span className="pl-3 text-xs font-medium text-[#4b5563]">Price</span>
               <input
                 type="number"
                 step="0.01"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-black/20 border border-white/10 rounded-md py-2 px-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
-                placeholder="0.00"
+                className="w-full bg-transparent border-none outline-none py-2 px-2 text-right text-sm text-white font-medium"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
               />
-              <span className="absolute right-3 top-2 text-gray-500 text-sm">USD</span>
+              <span className="pr-3 text-xs font-medium text-[#848e9c]">USD</span>
             </div>
-          </div>
-        )}
+          )}
 
-        <div>
-          <label className="block text-xs text-gray-400 mb-1">Quantity</label>
-          <div className="relative">
+          {/* Quantity Input */}
+          <div className="relative flex items-center bg-[#0b0e14] border border-[#1f2430] rounded focus-within:border-[#2962ff] transition-colors">
+            <span className="pl-3 text-xs font-medium text-[#4b5563]">Amount</span>
             <input
               type="number"
               step="1"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
-              className="w-full bg-black/20 border border-white/10 rounded-md py-2 px-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
-              placeholder="0"
+              className="w-full bg-transparent border-none outline-none py-2 px-2 text-right text-sm text-white font-medium"
+              style={{ fontVariantNumeric: 'tabular-nums' }}
             />
-            <span className="absolute right-3 top-2 text-gray-500 text-sm">{symbol}</span>
+            <span className="pr-3 text-xs font-medium text-[#848e9c]">{symbol}</span>
+          </div>
+
+          {/* Quick Percentages */}
+          <div className="flex items-center justify-between gap-1 mt-1">
+            {[25, 50, 75, 100].map(pct => (
+              <button 
+                key={pct}
+                type="button"
+                className="flex-1 py-1 text-[10px] font-semibold text-[#848e9c] bg-[#1c202d] rounded hover:bg-[#2B2B43] hover:text-white transition-colors"
+                onClick={() => { /* In a real app, calculate % of wallet balance */ }}
+              >
+                {pct}%
+              </button>
+            ))}
           </div>
         </div>
 
-        <div className="mt-auto pt-4">
-          <Button 
-            type="submit" 
-            variant={side === 'BUY' ? 'buy' : 'sell'} 
-            size="full"
-            isLoading={isLoading}
+        {/* ── Buy / Sell Actions ───────────────────────────────────── */}
+        <div className="mt-auto pt-6 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setSide('BUY')}
+            className={`flex-1 py-3 text-[13px] font-bold rounded transition-all ${isBuy ? 'bg-[#0ecb81] text-white shadow-[0_0_12px_rgba(14,203,129,0.4)]' : 'bg-[#1c202d] text-[#848e9c] hover:bg-[#2B2B43]'}`}
           >
-            {side} {symbol}
-          </Button>
+            Buy
+          </button>
+          <button
+            type="button"
+            onClick={() => setSide('SELL')}
+            className={`flex-1 py-3 text-[13px] font-bold rounded transition-all ${!isBuy ? 'bg-[#f6465d] text-white shadow-[0_0_12px_rgba(246,70,93,0.4)]' : 'bg-[#1c202d] text-[#848e9c] hover:bg-[#2B2B43]'}`}
+          >
+            Sell
+          </button>
         </div>
+
+        {/* Submit Button */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className={`w-full mt-3 py-3 text-[14px] font-bold rounded text-white transition-all 
+            ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}
+            ${isBuy ? 'bg-[#0ecb81] hover:bg-[#0b9e65]' : 'bg-[#f6465d] hover:bg-[#c9384b]'}`}
+        >
+          {isLoading ? 'Processing...' : `${isBuy ? 'Buy' : 'Sell'} ${symbol}`}
+        </button>
       </form>
-    </Card>
+    </div>
   );
 };

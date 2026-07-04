@@ -2,11 +2,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "baseUrl": "./src",
-    "paths": {
-      "@trade-x/shared": ["../../../shared/src/index.ts"]
-    }
+    "baseUrl": "./src"
   },
-  "include": ["src/**/*", "../../shared/src/**/*"],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }

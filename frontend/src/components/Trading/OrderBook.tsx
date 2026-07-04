@@ -1,6 +1,4 @@
 import React from 'react';
-import { Card } from '../UI/Card';
-
 
 interface OrderBookProps {
   bids: [number, number][]; // [price, quantity]
@@ -23,27 +21,27 @@ export const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
   const formatQty = (q: number) => q.toString();
 
   return (
-    <Card className="h-full" noPadding>
-      <div className="flex text-xs font-semibold text-gray-500 px-4 py-2 border-b border-white/10">
+    <div className="flex flex-col h-full bg-[#151822]">
+      <div className="flex text-[10px] font-semibold text-[#848e9c] uppercase tracking-wider px-3 py-2 border-b border-[#1f2430]">
         <div className="flex-1">Price(USD)</div>
         <div className="flex-1 text-right">Size</div>
         <div className="flex-1 text-right">Total</div>
       </div>
 
-      <div className="flex flex-col flex-1 overflow-hidden font-mono text-sm">
+      <div className="flex flex-col flex-1 overflow-hidden text-[11px] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
         {/* Asks (Sell Orders) */}
         <div className="flex-1 flex flex-col justify-end">
           {sortedAsks.map(([price, qty], i) => {
             const depthPercentage = (qty / maxVolume) * 100;
             return (
-              <div key={`ask-${price}-${i}`} className="relative flex px-4 py-1 hover:bg-white/5 cursor-pointer group">
+              <div key={`ask-${price}-${i}`} className="relative flex px-3 py-[2px] hover:bg-[#1c202d] cursor-pointer group">
                 <div 
-                  className="absolute right-0 top-0 bottom-0 bg-red-500/10 z-0 transition-all duration-300"
-                  style={{ width: `${depthPercentage}%` }}
+                  className="absolute right-0 top-0 bottom-0 z-0 transition-all duration-300"
+                  style={{ width: `${depthPercentage}%`, background: 'var(--trade-sell-bg)' }}
                 />
-                <div className="flex-1 text-red-400 z-10">{formatPrice(price)}</div>
-                <div className="flex-1 text-right text-gray-300 z-10">{formatQty(qty)}</div>
-                <div className="flex-1 text-right text-gray-400 z-10 group-hover:text-gray-200">
+                <div className="flex-1 z-10" style={{ color: 'var(--trade-sell)' }}>{formatPrice(price)}</div>
+                <div className="flex-1 text-right text-[#d1d4dc] z-10">{formatQty(qty)}</div>
+                <div className="flex-1 text-right text-[#4b5563] z-10 group-hover:text-[#848e9c]">
                   {formatPrice(price * qty)}
                 </div>
               </div>
@@ -52,13 +50,15 @@ export const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
         </div>
 
         {/* Spread Indicator */}
-        <div className="flex items-center justify-center py-2 border-y border-white/5 bg-black/20 my-1">
+        <div className="flex items-center justify-center py-1.5 border-y border-[#1f2430] my-0.5 bg-[#0b0e14]">
           {sortedAsks.length > 0 && sortedBids.length > 0 ? (
-            <span className="text-gray-400 text-xs">
-              Spread: {formatPrice(sortedAsks[sortedAsks.length - 1][0] - sortedBids[0][0])}
+            <span className="text-[#848e9c] text-[11px] font-semibold flex items-center gap-2">
+              <span style={{ color: 'var(--trade-buy)' }}>{formatPrice(sortedBids[0][0])}</span>
+              <span className="text-[#4b5563]">↑</span>
+              <span>{formatPrice(sortedAsks[sortedAsks.length - 1][0] - sortedBids[0][0])}</span>
             </span>
           ) : (
-            <span className="text-gray-500 text-xs">—</span>
+            <span className="text-[#4b5563] text-[11px]">—</span>
           )}
         </div>
 
@@ -67,14 +67,14 @@ export const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
           {sortedBids.map(([price, qty], i) => {
             const depthPercentage = (qty / maxVolume) * 100;
             return (
-              <div key={`bid-${price}-${i}`} className="relative flex px-4 py-1 hover:bg-white/5 cursor-pointer group">
+              <div key={`bid-${price}-${i}`} className="relative flex px-3 py-[2px] hover:bg-[#1c202d] cursor-pointer group">
                 <div 
-                  className="absolute right-0 top-0 bottom-0 bg-emerald-500/10 z-0 transition-all duration-300"
-                  style={{ width: `${depthPercentage}%` }}
+                  className="absolute right-0 top-0 bottom-0 z-0 transition-all duration-300"
+                  style={{ width: `${depthPercentage}%`, background: 'var(--trade-buy-bg)' }}
                 />
-                <div className="flex-1 text-emerald-400 z-10">{formatPrice(price)}</div>
-                <div className="flex-1 text-right text-gray-300 z-10">{formatQty(qty)}</div>
-                <div className="flex-1 text-right text-gray-400 z-10 group-hover:text-gray-200">
+                <div className="flex-1 z-10" style={{ color: 'var(--trade-buy)' }}>{formatPrice(price)}</div>
+                <div className="flex-1 text-right text-[#d1d4dc] z-10">{formatQty(qty)}</div>
+                <div className="flex-1 text-right text-[#4b5563] z-10 group-hover:text-[#848e9c]">
                   {formatPrice(price * qty)}
                 </div>
               </div>
@@ -82,6 +82,6 @@ export const OrderBook: React.FC<OrderBookProps> = ({ bids, asks }) => {
           })}
         </div>
       </div>
-    </Card>
+    </div>
   );
 };

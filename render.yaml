@@ -1,0 +1,141 @@
+# render.yaml — Trade-X deployment blueprint
+# Deploy all services at once via: Render Dashboard → New → Blueprint
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+
+  # ─── Auth Service ───────────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-auth
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerCommand: node backend/auth-service/dist/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false        # Set in Render dashboard: your Atlas auth-db URI
+      - key: JWT_SECRET
+        sync: false        # Set in Render dashboard: a long random secret
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: INITIAL_WALLET_BALANCE
+        value: "100000"
+
+  # ─── Order Service ──────────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-orders
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerCommand: node backend/order-service/dist/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false        # Set in Render dashboard: your Atlas order-db URI
+      - key: JWT_SECRET
+        sync: false
+      - key: MATCHING_ENGINE_URL
+        sync: false        # Set after deploy: https://trade-x-engine.onrender.com
+      - key: PORTFOLIO_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-portfolio.onrender.com
+
+  # ─── Matching Engine ────────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-engine
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerCommand: node backend/matching-engine/dist/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MARKET_DATA_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-market.onrender.com
+
+  # ─── Portfolio Service ──────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-portfolio
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerCommand: node backend/portfolio-service/dist/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false        # Set in Render dashboard: your Atlas portfolio-db URI
+      - key: JWT_SECRET
+        sync: false
+      - key: MARKET_DATA_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-market.onrender.com
+
+  # ─── Market Data Service ────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-market
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerCommand: node backend/market-data-service/dist/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false        # Set in Render dashboard: your Atlas market-db URI
+      - key: MATCHING_ENGINE_URL
+        sync: false        # Set after deploy: https://trade-x-engine.onrender.com
+
+  # ─── API Gateway ────────────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-gateway
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend
+    dockerCommand: node backend/api-gateway/dist/server.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        sync: false
+      - key: AUTH_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-auth.onrender.com
+      - key: ORDER_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-orders.onrender.com
+      - key: MATCHING_ENGINE_URL
+        sync: false        # Set after deploy: https://trade-x-engine.onrender.com
+      - key: PORTFOLIO_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-portfolio.onrender.com
+      - key: MARKET_DATA_SERVICE_URL
+        sync: false        # Set after deploy: https://trade-x-market.onrender.com
+
+  # ─── Frontend ───────────────────────────────────────────────────────────────
+  - type: web
+    name: trade-x-frontend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.frontend
+    plan: free
+    envVars:
+      # Nginx upstream URLs (runtime, not build-time — used by nginx reverse proxy)
+      - key: NGINX_API_UPSTREAM
+        sync: false        # Set after deploy: https://trade-x-gateway.onrender.com
+      - key: NGINX_SOCKET_UPSTREAM
+        sync: false        # Set after deploy: https://trade-x-market.onrender.com
+      # Vite build-time URLs (baked into JS bundle — MUST be set before first deploy)
+      - key: VITE_API_URL
+        sync: false        # https://trade-x-gateway.onrender.com/api
+      - key: VITE_SOCKET_URL
+        sync: false        # https://trade-x-market.onrender.com

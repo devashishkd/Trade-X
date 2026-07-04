@@ -90,8 +90,11 @@ export function subscribeToSymbol(symbol: string, callbacks: SymbolCallbacks): v
   const sym = symbol.toUpperCase();
   const s   = getSocket();
 
-  // Unsubscribe from any existing handlers for this symbol first
-  unsubscribeFromSymbol(sym);
+  // Only clean up existing handlers if we were already tracking this symbol.
+  // Avoids sending a spurious 'unsubscribe' event on first subscribe.
+  if (activeHandlers.has(sym)) {
+    unsubscribeFromSymbol(sym);
+  }
 
   activeHandlers.set(sym, callbacks);
 
@@ -110,6 +113,7 @@ export function subscribeToSymbol(symbol: string, callbacks: SymbolCallbacks): v
 
 /**
  * Unsubscribe from a symbol's room and remove its event handlers.
+ * Only emits the socket 'unsubscribe' event if the client was actually in the room.
  */
 export function unsubscribeFromSymbol(symbol: string): void {
   const sym = symbol.toUpperCase();
@@ -121,9 +125,9 @@ export function unsubscribeFromSymbol(symbol: string): void {
     if (cbs.onCandle)  s.off('candle_update',  cbs.onCandle);
     if (cbs.onTrade)   s.off('trade',           cbs.onTrade);
     activeHandlers.delete(sym);
+    // Only tell the server to leave the room if we were actually in it
+    s.emit('unsubscribe', sym);
   }
-
-  s.emit('unsubscribe', sym);
 }
 
 /**

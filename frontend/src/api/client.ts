@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// Vite proxies /api to the API Gateway at localhost:3000
+// In Docker: VITE_API_URL=/api (nginx proxies /api → gateway)
+// On Render: VITE_API_URL=https://trade-x-api-gateway.onrender.com/api
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   timeout: 10000,
 });
 
@@ -23,11 +24,20 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Clear token and redirect to login
-      localStorage.removeItem('token');
-      // A full reload ensures state is cleared and the router handles the redirect
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        window.location.href = '/login';
+      const requestUrl: string = error.config?.url ?? '';
+      // Only clear the session if the 401 came from an auth-sensitive endpoint
+      // (not from background market-data or other polling requests).
+      const isAuthEndpoint =
+        requestUrl.includes('/auth/') ||
+        requestUrl.includes('/orders') ||
+        requestUrl.includes('/portfolio') ||
+        requestUrl.includes('/wallet');
+
+      if (isAuthEndpoint) {
+        localStorage.removeItem('token');
+        if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+          window.location.href = '/login';
+        }
       }
     }
     return Promise.reject(error);
